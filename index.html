@@ -1,0 +1,48 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Map with Google Sheets Data</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; width: 100%; }
+    </style>
+</head>
+<body>
+    <h2>Leaflet Map with Origin and Destination from Google Sheets</h2>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([10.3157, 123.8854], 6); // Cebu coordinates
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Function to load data from Google Sheets
+        function loadData() {
+            var sheetID = "1nluU05qQODaIe6-WP4hawC10awP94xwlO2hfspxBDy0"; // Replace with your Google Sheet ID
+            var url = `https://spreadsheets.google.com/feeds/list/${sheetID}/1/public/values?alt=json`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    var entries = data.feed.entry;
+                    entries.forEach(entry => {
+                        var originLat = parseFloat(entry.gsx$originlat.$t);
+                        var originLng = parseFloat(entry.gsx$originlng.$t);
+                        var destLat = parseFloat(entry.gsx$destlat.$t);
+                        var destLng = parseFloat(entry.gsx$destlng.$t);
+
+                        // Add markers for origin and destination
+                        L.marker([originLat, originLng]).addTo(map).bindPopup('Origin');
+                        L.marker([destLat, destLng]).addTo(map).bindPopup('Destination');
+                    });
+                });
+        }
+
+        // Load data when the page is ready
+        loadData();
+    </script>
+</body>
+</html>
