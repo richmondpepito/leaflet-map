@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <style>
+    #map { height: 600px; width: 100%; }
+    #filters { margin: 20px; font-family: Arial, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="filters">
+    <label for="warehouseTypeFilter">Warehouse Type: </label>
+    <select id="warehouseTypeFilter"></select>
+
+    <label for="supervisorFilter">Supervisor: </label>
+    <select id="supervisorFilter"></select>
+
+    <label for="regionFilter">Region: </label>
+    <select id="regionFilter">
+      <option value="all">All Regions</option>
+      <option value="Region I">Region I</option>
+      <option value="CAR">CAR</option>
+      <option value="Region II">Region II</option>
+      <option value="Region III">Region III</option>
+      <option value="NCR">NCR</option>
+      <option value="Region IV-A">Region IV-A</option>
+      <option value="Region IV-B">Region IV-B</option>
+      <option value="Region V">Region V</option>
+      <option value="Region VI">Region VI</option>
+      <option value="Region VII">Region VII</option>
+      <option value="Region VIII">Region VIII</option>
+      <option value="Region IX">Region IX</option>
+      <option value="Region X">Region X</option>
+      <option value="Region XI">Region XI</option>
+      <option value="Region XII">Region XII</option>
+      <option value="Region XIII">Region XIII</option>
+      <option value="BARMM">BARMM</option>
+    </select>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?output=csv';
+    let map = L.map('map').setView([10.3157, 123.8854], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let allData = [];
+    let lines = [];
+    let markers = [];
+
+    const regionBounds = {
+      "Region I": [[15.8, 118.5], [20.5, 122.5]],
+      "CAR": [[13.5, 120.5], [17.5, 126]],
+      "Region II": [[14.0, 121.5], [18.0, 126.0]],
+      "Region III": [[13.0, 120.0], [15.5, 125.0]],
+      "NCR": [[14.3, 120.7], [14.8, 121.3]],
+      "Region IV-A": [[13.5, 121.0], [15.5, 123.0]],
+      "Region IV-B": [[12.5, 119.0], [14.5, 122.0]],
+      "Region V": [[12.5, 123.5], [14.5, 126.5]],
+      "Region VI": [[10.5, 121.5], [12.0, 124.0]],
+      "Region VII": [[9.5, 122.0], [11.5, 124.0]],
+      "Region VIII": [[10.0, 124.5], [12.5, 126.0]],
+      "Region IX": [[6.0, 118.5], [8.5, 123.0]],
+      "Region X": [[7.5, 122.5], [9.5, 124.5]],
+      "Region XI": [[7.5, 125.5], [9.5, 127.5]],
+      "Region XII": [[6.5, 124.5], [8.0, 126.5]],
+      "Region XIII": [[8.5, 124.5], [11.0, 126.5]],
+      "BARMM": [[5.5, 118.5], [8.5, 124.5]]
+    };
+
+    function fetchData() {
+      Papa.parse(sheetUrl, {
+        download: true,
+        header: true,
+        complete: function(results) {
+          allData = results.data.filter(row => row['Route ID']);
+          populateFilters();
+          updateMap();
+        }
+      });
+    }
+
+    function populateFilters() {
+      const warehouseTypeSet = new Set();
+      const supervisorSet = new Set();
+      const regionSet = new Set();
+
+      allData.forEach(row => {
+        warehouseTypeSet.add(row['Warehouse Type']);
+        supervisorSet.add(row['Supervisor']);
+        regionSet.add(row['Region']);
+      });
+
+      const warehouseTypeFilter = document.getElementById('warehouseTypeFilter');
+      const supervisorFilter = document.getElementById('supervisorFilter');
+      const regionFilter = document.getElementById('regionFilter');
+
+      warehouseTypeFilter.innerHTML = '<option value="all">All Warehouse Types</option>' +
+        Array.from(warehouseTypeSet).map(type => `<option value="${type}">${type}</option>`).join('');
+
+      supervisorFilter.innerHTML = '<option value="all">All Supervisors</option>' +
+        Array.from(supervisorSet).map(name => `<option value="${name}">${name}</option>`).join('');
+
+      regionFilter.innerHTML += Array.from(regionSet).map(region => 
+        `<option value="${region}">${region}</option>`).join('');
+
+      warehouseTypeFilter.addEventListener('change', updateMap);
+      supervisorFilter.addEventListener('change', updateMap);
+      regionFilter.addEventListener('change', updateMap);
+    }
+
+    function updateMap() {
+      lines.forEach(line => map.removeLayer(line));
+      markers.forEach(marker => map.removeLayer(marker));
+      lines = [];
+      markers = [];
+
+      const selectedWarehouse = document.getElementById('warehouseTypeFilter').value;
+      const selectedSupervisor = document.getElementById('supervisorFilter').value;
+      const selectedRegion = document.getElementById('regionFilter').value;
+
+      const filtered = allData.filter(row => {
+        const matchesWarehouse = selectedWarehouse === 'all' || row['Warehouse Type'] === selectedWarehouse;
+        const matchesSupervisor = selectedSupervisor === 'all' || row['Supervisor'] === selectedSupervisor;
+        const matchesRegion = selectedRegion === 'all' || row['Region'] === selectedRegion;
+        return matchesWarehouse && matchesSupervisor && matchesRegion;
+      });
+
+      filtered.forEach(row => drawRoute(row));
+
+      if (selectedRegion !== 'all') {
+        const bounds = regionBounds[selectedRegion];
+        if (bounds) {
+          map.fitBounds(bounds, { padding: [20, 20], maxZoom: 10 });
+        }
+      }
+    }
+
+    function drawRoute(route) {
+      const origin = [parseFloat(route['Origin Lat']), parseFloat(route['Origin Long'])];
+      const dest = [parseFloat(route['Destination Lat']), parseFloat(route['Destination Long'])];
+      const color = getRouteColor(route['Route Type']);
+      const weight = getRouteWeight(route['Route Type']);
+      const dash = getRouteDash(route['Route Type']);
+      const markerSize = getMarkerSize(route['Route Type']);
+
+      const line = L.polyline([origin, dest], {
+        color: color,
+        weight: weight,
+        dashArray: dash
+      }).addTo(map);
+
+      const popupText = `<strong>${route['Route Type']}</strong><br>${route['Destination Name']} - ${route['Destination Location']}<br><em>${route['Supervisor']}</em>`;
+      const originMarker = L.circleMarker(origin, { radius: markerSize, color: color }).bindPopup(popupText).addTo(map);
+      const destMarker = L.circleMarker(dest, { radius: markerSize, color: color }).bindPopup(popupText).addTo(map);
+
+      lines.push(line);
+      markers.push(originMarker, destMarker);
+    }
+
+    function getRouteColor(type) {
+      if (type === 'Cebu Main') return 'black';
+      if (type === 'Cebu Main to Sub-warehouse') return 'black';
+      if (type === 'Cebu Main to Bin') return 'black';
+      if (type === 'Sub-warehouse to Satellite Warehouse') return 'blue';
+      if (type === 'Sub-warehouse to Bin') return 'blue';
+      if (type === 'Satellite Warehouse to Bin') return 'green';
+      return 'gray';
+    }
+
+    function getRouteWeight(type) {
+      if (type === 'Cebu Main') return 2;
+      if (type === 'Cebu Main to Sub-warehouse') return 2;
+      if (type === 'Cebu Main to Bin') return 2;
+      if (type === 'Sub-warehouse to Satellite Warehouse') return 2;
+      if (type === 'Sub-warehouse to Bin') return 2;
+      if (type === 'Satellite Warehouse to Bin') return 2;
+      return 2;
+    }
+
+    function getRouteDash(type) {
+      if (type === 'Cebu Main to Bin') return '5,5';
+      if (type === 'Sub-warehouse to Bin') return '5,5';
+      if (type === 'Satellite Warehouse to Bin') return '5,5';
+      return null;
+    }
+
+    function getMarkerSize(type) {
+      if (type === 'Cebu Main') return 6;
+      if (type === 'Cebu Main to Sub-warehouse') return 6;
+      if (type === 'Cebu Main to Bin') return 5;
+      if (type === 'Sub-warehouse to Satellite Warehouse') return 5;
+      if (type === 'Sub-warehouse to Bin') return 4;
+      if (type === 'Satellite Warehouse to Bin') return 3;
+      return 4;
+    }
+
+    fetchData();
+  </script>
+</body>
+</html>
