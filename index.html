@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Warehouse Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <style>
+    #map { height: 90vh; width: 100%; }
+    #filters {
+      font-family: Arial, sans-serif;
+      padding: 10px;
+    }
+    .reset-btn {
+      margin-top: 10px;
+      padding: 5px 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .reset-btn:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div id="filters">
+    <label for="warehouseTypeFilter">Warehouse Type:</label>
+    <select id="warehouseTypeFilter"></select>
+
+    <label for="supervisorFilter">Supervisor:</label>
+    <select id="supervisorFilter"></select>
+
+    <label for="regionFilter">Region:</label>
+    <select id="regionFilter"></select>
+
+    <label for="provinceFilter">Province:</label>
+    <select id="provinceFilter"></select>
+
+    <button class="reset-btn" onclick="resetMapView()">Reset View</button>
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <script>
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?output=csv';
+
+    const map = L.map('map').setView([12.8797, 121.774], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let allData = [], lines = [], markers = [];
+
+    const regionBounds = {
+      "Region I": [[15.6, 119.5], [18.7, 121.5]],
+      "CAR": [[16.0, 120.5], [18.0, 122.0]],
+      "Region II": [[16.2, 121.3], [18.5, 122.5]],
+      "Region III": [[14.5, 119.5], [16.2, 121.5]],
+      "NCR": [[14.3, 120.8], [14.8, 121.2]],
+      "Region IV-A": [[13.4, 120.5], [15.0, 122.0]],
+      "Region IV-B": [[11.8, 118.0], [13.8, 121.5]],
+      "Region V": [[12.5, 123.2], [14.0, 124.5]],
+      "Region VI": [[10.3, 121.0], [11.8, 123.0]],
+      "Region VII": [[9.2, 122.2], [11.5, 124.0]],
+      "Region VIII": [[10.5, 124.5], [12.5, 126.0]],
+      "Region IX": [[6.0, 121.0], [8.5, 123.0]],
+      "Region X": [[7.5, 123.5], [9.5, 125.0]],
+      "Region XI": [[6.5, 125.0], [8.0, 126.5]],
+      "Region XII": [[6.0, 124.0], [7.8, 126.0]],
+      "Region XIII": [[8.5, 125.0], [10.5, 126.5]],
+      "BARMM": [[5.5, 120.0], [7.8, 124.5]]
+    };
+
+    function fetchData() {
+      Papa.parse(sheetUrl, {
+        download: true,
+        header: true,
+        complete: function(results) {
+          allData = results.data.filter(row => row['Route ID']);
+          populateFilters();
+          updateMap();
+        }
+      });
+    }
+
+    function populateFilters() {
+      const warehouseTypeSet = new Set();
+      const supervisorSet = new Set();
+      const regionSet = new Set();
+      const provinceMap = {};
+
+      allData.forEach(row => {
+        warehouseTypeSet.add(row['Warehouse Type']);
+        supervisorSet.add(row['Supervisor']);
+        regionSet.add(row['Regional Destination']);
+        const r = row['Regional Destination'], p = row['Provincial Destination'];
+        if (r && p) {
+          if (!provinceMap[r]) provinceMap[r] = new Set();
+          provinceMap[r].add(p);
+        }
+      });
+
+      const filters = {
+        warehouse: document.getElementById('warehouseTypeFilter'),
+        supervisor: document.getElementById('supervisorFilter'),
+        region: document.getElementById('regionFilter'),
+        province: document.getElementById('provinceFilter')
+      };
+
+      filters.warehouse.innerHTML = '<option value="all">All Warehouse Types</option>' + Array.from(warehouseTypeSet).map(t => `<option>${t}</option>`).join('');
+      filters.supervisor.innerHTML = '<option value="all">All Supervisors</option>' + Array.from(supervisorSet).map(s => `<option>${s}</option>`).join('');
+      filters.region.innerHTML = '<option value="all">All Regions</option>' + Array.from(regionSet).map(r => `<option>${r}</option>`).join('');
+
+      filters.region.addEventListener('change', () => {
+        const r = filters.region.value;
+        const provinces = provinceMap[r] || new Set();
+        filters.province.innerHTML = '<option value="all">All Provinces</option>' + Array.from(provinces).map(p => `<option>${p}</option>`).join('');
+        updateMap();
+      });
+
+      ['warehouseTypeFilter', 'supervisorFilter', 'provinceFilter'].forEach(id => {
+        document.getElementById(id).addEventListener('change', updateMap);
+      });
+    }
+
+    function updateMap() {
+      lines.forEach(l => map.removeLayer(l));
+      markers.forEach(m => map.removeLayer(m));
+      lines = [], markers = [];
+
+      const filters = {
+        warehouse: document.getElementById('warehouseTypeFilter').value,
+        supervisor: document.getElementById('supervisorFilter').value,
+        region: document.getElementById('regionFilter').value,
+        province: document.getElementById('provinceFilter').value
+      };
+
+      const filtered = allData.filter(row => {
+        return (filters.warehouse === 'all' || row['Warehouse Type'] === filters.warehouse) &&
+               (filters.supervisor === 'all' || row['Supervisor'] === filters.supervisor) &&
+               (filters.region === 'all' || row['Regional Destination'] === filters.region) &&
+               (filters.province === 'all' || row['Provincial Destination'] === filters.province);
+      });
+
+      filtered.forEach(drawRoute);
+
+      if (filters.province !== 'all') {
+        const pRow = filtered.find(r => r['Provincial Destination'] === filters.province);
+        if (pRow) {
+          const lat = parseFloat(pRow['Destination Lat']), lng = parseFloat(pRow['Destination Long']);
+          if (!isNaN(lat) && !isNaN(lng)) map.setView([lat, lng], 10);
+        }
+      } else if (filters.region !== 'all' && regionBounds[filters.region]) {
+        map.fitBounds(L.latLngBounds(regionBounds[filters.region]));
+      }
+    }
+
+    function drawRoute(row) {
+      const origin = [parseFloat(row['Origin Lat']), parseFloat(row['Origin Long'])];
+      const dest = [parseFloat(row['Destination Lat']), parseFloat(row['Destination Long'])];
+      const color = getRouteColor(row['Route Type']);
+      const weight = row['Route Type'] === 'direct' ? 2 : 1;
+      const dash = row['Route Type'] === 'reverse' ? '5,10' : null;
+
+      const popup = `<b>Route Type:</b> ${row['Route Type']}<br/>
+                     <b>From:</b> ${row['Origin Location']}<br/>
+                     <b>To:</b> ${row['Destination Location']}<br/>
+                     <b>Location:</b> ${row['Warehouse Type']}<br/>
+                     <b>Supervisor:</b> ${row['Supervisor']}`;
+
+      const line = L.polyline([origin, dest], {
+        color, weight, dashArray: dash
+      }).bindTooltip(popup).addTo(map);
+      lines.push(line);
+
+      if (row['Warehouse Type'] === 'Cebu Main') {
+        const customIcon = L.icon({
+          iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
+          iconSize: [40, 40],
+          iconAnchor: [20, 40],
+          popupAnchor: [0, -40]
+        });
+
+        const mainPopup = `<b>GTCosmetics Manufacturing Inc.</b><br/>Main Plant<br/>Tayud, Liloan, Cebu`;
+        const marker = L.marker(dest, { icon: customIcon }).bindPopup(mainPopup).addTo(map);
+        markers.push(marker);
+      } else {
+        const marker = L.circleMarker(dest, {
+          radius: 5,
+          fillColor: color,
+          color: '#333',
+          weight: 1,
+          fillOpacity: 0.8
+        }).bindPopup(popup).addTo(map);
+        markers.push(marker);
+      }
+    }
+
+    function getRouteColor(type) {
+      switch (type.toLowerCase()) {
+        case 'direct': return 'green';
+        case 'transshipment': return 'orange';
+        case 'reverse': return 'red';
+        default: return 'gray';
+      }
+    }
+
+    function resetMapView() {
+      map.setView([12.8797, 121.774], 6);
+      updateMap();
+    }
+
+    fetchData();
+  </script>
+</body>
+</html>
