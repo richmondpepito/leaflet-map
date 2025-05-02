@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Warehouse Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <style>
+    #map { height: 600px; width: 100%; }
+    #filters { margin: 20px; font-family: Arial, sans-serif; }
+    #resetButton { padding: 6px 12px; margin-left:10px; }
+    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
+    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+  </style>
+</head>
+<body>
+  <div id="filters">
+    <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
+    <label>Supervisor: <select id="supervisorFilter"></select></label>
+    <label>Region: <select id="regionFilter"></select></label>
+    <label>Province: <select id="provinceFilter"></select></label>
+    <button id="resetButton">Reset View</button>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script>
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?output=csv';
+    const cebuIcon = L.icon({
+      iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
+
+    const map = L.map('map').setView([12.8797, 121.7740], 6); // Default to Philippines
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    const cluster = L.markerClusterGroup();
+    map.addLayer(cluster);
+
+    let allData = [], lines = [], markers = [];
+
+    Papa.parse(sheetUrl, {
+      download: true,
+      header: true,
+      complete(res) {
+        allData = res.data.filter(r => r['Route ID']);
+        setup();
+      }
+    });
+
+    function setup() {
+      populateFilters();
+      updateMap();
+      addLegend();
+    }
+
+    function populateFilters() {
+      const wf = new Set(), sf = new Set(), rf = new Set(), pm = {};
+      allData.forEach(d => {
+        wf.add(d['Warehouse Type']);
+        sf.add(d['Supervisor']);
+        rf.add(d['Regional Destination']);
+        const reg = d['Regional Destination'], prov = d['Provincial Destination'];
+        if (reg && prov) {
+          pm[reg] = pm[reg] || new Set();
+          pm[reg].add(prov);
+        }
+      });
+      const filters = {
+        warehouseTypeFilter: wf,
+        supervisorFilter: sf,
+        regionFilter: rf
+      };
+      for (const id in filters) {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '<option value="all">All</option>' + [...filters[id]].map(i => `<option>${i}</option>`).join('');
+        sel.onchange = updateMap;
+      }
+
+      const rfEl = document.getElementById('regionFilter');
+      const pfEl = document.getElementById('provinceFilter');
+      rfEl.onchange = () => {
+        const region = rfEl.value;
+        pfEl.innerHTML = '<option value="all">All</option>' +
+          [...(pm[region] || [])].map(p => `<option>${p}</option>`).join('');
+        updateMap();
+      };
+      pfEl.onchange = updateMap;
+      document.getElementById('resetButton').onclick = resetView;
+    }
+
+    function updateMap() {
+      lines.forEach(l => map.removeLayer(l)); lines = [];
+      markers.forEach(m => cluster.removeLayer(m)); markers = [];
+
+      const filters = {
+        wf: document.getElementById('warehouseTypeFilter').value,
+        sf: document.getElementById('supervisorFilter').value,
+        rf: document.getElementById('regionFilter').value,
+        pf: document.getElementById('provinceFilter').value
+      };
+
+      const filtered = allData.filter(d =>
+        (filters.wf === 'all' || d['Warehouse Type'] === filters.wf) &&
+        (filters.sf === 'all' || d['Supervisor'] === filters.sf) &&
+        (filters.rf === 'all' || d['Regional Destination'] === filters.rf) &&
+        (filters.pf === 'all' || d['Provincial Destination'] === filters.pf)
+      );
+
+      const bounds = [];
+      filtered.forEach(d => {
+        const valid = draw(d);
+        if (valid) bounds.push(valid[0], valid[1]);
+      });
+
+      if (bounds.length) {
+        map.fitBounds(bounds);
+      } else {
+        map.setView([12.8797, 121.7740], 6); // fallback to PH view
+      }
+    }
+
+    function draw(d) {
+      const o = [+d['Origin Lat'], +d['Origin Long']];
+      const u = [+d['Destination Lat'], +d['Destination Long']];
+      if (!isValidLatLng(o) || !isValidLatLng(u)) return null;
+
+      const txt = `Route Type: ${d['Route Type']}<br>From: ${d['Origin Name']}<br>To: ${d['Destination Name']}<br>Location: ${d['Destination Location']}<br>Supervisor: ${d['Supervisor']}`;
+      const line = L.polyline([o, u], {
+        color: getColor(d['Route Type']),
+        weight: 1.5,
+        dashArray: getDash(d['Route Type'])
+      }).addTo(map).bindTooltip(txt);
+      lines.push(line);
+
+      let om;
+      if (Math.abs(o[0] - 10.380134047948756) < 1e-4 && Math.abs(o[1] - 123.99598647262346) < 1e-4) {
+        om = L.marker(o, { icon: cebuIcon }).bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu');
+      } else {
+        om = L.circleMarker(o, {
+          radius: getSize(d['Route Type']),
+          color: getColor(d['Route Type'])
+        }).bindTooltip(txt);
+      }
+
+      const dm = L.circleMarker(u, {
+        radius: getSize(d['Route Type']),
+        color: getColor(d['Route Type'])
+      }).bindTooltip(txt);
+
+      cluster.addLayer(om);
+      cluster.addLayer(dm);
+      markers.push(om, dm);
+
+      return [o, u];
+    }
+
+    function isValidLatLng([lat, lng]) {
+      return !isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    }
+
+    function getColor(t) {
+      if (t.startsWith('Cebu Main')) return 'black';
+      if (t.includes('Satellite')) return 'green';
+      if (t.includes('Sub-warehouse')) return 'blue';
+      return 'gray';
+    }
+
+    function getDash(t) {
+      return t.includes('to Bin') ? '5,5' : null;
+    }
+
+    function getSize(t) {
+      return {
+        'Cebu Main': 6,
+        'Cebu Main to Sub-warehouse': 6,
+        'Cebu Main to Bin': 5,
+        'Sub-warehouse to Satellite Warehouse': 5,
+        'Sub-warehouse to Bin': 4,
+        'Satellite Warehouse to Bin': 3
+      }[t] || 4;
+    }
+
+    function resetView() {
+      document.getElementById('warehouseTypeFilter').value = 'all';
+      document.getElementById('supervisorFilter').value = 'all';
+      document.getElementById('regionFilter').value = 'all';
+      document.getElementById('provinceFilter').innerHTML = '<option value="all">All</option>';
+      updateMap();
+    }
+
+    function addLegend() {
+      L.control({ position: 'bottomright' }).onAdd = function () {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+          <span style="background:black"></span> Cebu Main<br>
+          <span style="background:blue"></span> Sub-warehouse<br>
+          <span style="background:green"></span> Satellite Warehouse
+        `;
+        return div;
+      }.addTo(map);
+    }
+  </script>
+</body>
+</html>
