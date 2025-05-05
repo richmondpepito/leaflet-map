@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <style>
+    #map { height: 600px; width: 100%; }
+    #filters { margin: 20px; font-family: Arial, sans-serif; }
+    #resetButton { padding: 6px 12px; margin-left:10px; }
+    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
+    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+    .spinner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      z-index: 9999;
+    }
+    @keyframes spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="filters">
+    <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
+    <label>Supervisor: <select id="supervisorFilter"></select></label>
+    <label>Region: <select id="regionFilter"></select></label>
+    <label>Province: <select id="provinceFilter"></select></label>
+    <button id="resetButton">Reset View</button>
+  </div>
+  <div class="spinner" id="spinner"></div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    const provinceBounds = {
+      "Ilocos Norte": [[17.8, 120.4], [18.6, 121.1]],
+      "Ilocos Sur": [[17.0, 120.3], [17.8, 120.8]],
+      "La Union": [[16.2, 120.1], [16.7, 120.6]],
+      "Pangasinan": [[15.4, 119.7], [16.3, 120.8]],
+      "Abra": [[17.3, 120.4], [17.8, 121.0]],
+      "Apayao": [[17.7, 121.0], [18.5, 121.5]],
+      "Benguet": [[16.2, 120.4], [16.7, 121.2]],
+      "Ifugao": [[16.5, 120.9], [17.1, 121.3]],
+      "Kalinga": [[17.0, 121.0], [17.8, 121.5]],
+      "Mountain Province": [[16.8, 120.9], [17.2, 121.3]],
+      "Cagayan": [[17.6, 121.4], [18.5, 122.4]],
+      "Isabela": [[16.5, 121.3], [17.6, 122.1]],
+      "Nueva Vizcaya": [[16.2, 121.0], [16.8, 121.4]],
+      "Quirino": [[16.0, 121.3], [16.5, 121.8]],
+      "Aurora": [[15.7, 121.2], [16.3, 122.0]],
+      "Bataan": [[14.4, 120.3], [14.8, 120.7]],
+      "Bulacan": [[14.7, 120.8], [15.2, 121.2]],
+      "Nueva Ecija": [[15.2, 120.8], [16.1, 121.3]],
+      "Pampanga": [[14.9, 120.4], [15.3, 120.9]],
+      "Tarlac": [[15.3, 120.3], [15.9, 120.8]],
+      "Zambales": [[14.6, 119.8], [15.7, 120.4]],
+      "Metro Manila": [[14.4, 120.9], [14.8, 121.2]],
+      "Batangas": [[13.6, 120.5], [14.2, 121.2]],
+      "Cavite": [[14.2, 120.7], [14.6, 121.1]],
+      "Laguna": [[14.1, 121.2], [14.4, 121.6]],
+      "Quezon": [[13.5, 121.0], [14.2, 122.0]],
+      "Rizal": [[14.5, 121.0], [14.8, 121.3]],
+      "Marinduque": [[13.2, 121.8], [13.6, 122.1]],
+      "Occidental Mindoro": [[12.0, 120.0], [13.0, 121.0]],
+      "Oriental Mindoro": [[12.3, 121.0], [13.3, 122.1]],
+      "Palawan": [[8.0, 117.0], [12.3, 120.5]],
+      "Romblon": [[12.3, 122.0], [12.7, 122.5]],
+      "Albay": [[13.0, 123.3], [13.5, 124.2]],
+      "Camarines Norte": [[14.0, 122.4], [14.3, 123.0]],
+      "Camarines Sur": [[13.2, 122.8], [13.9, 123.6]],
+      "Catanduanes": [[13.6, 124.0], [14.1, 124.4]],
+      "Masbate": [[12.1, 123.2], [12.6, 124.0]],
+      "Sorsogon": [[12.6, 123.8], [13.1, 124.2]],
+      "Antique": [[10.4, 121.9], [11.1, 122.3]],
+      "Capiz": [[11.3, 122.3], [11.7, 123.0]],
+      "Iloilo": [[10.6, 122.2], [11.2, 123.2]],
+      "Negros Occidental": [[9.8, 122.1], [10.8, 123.3]],
+      "Bohol": [[9.5, 123.7], [10.2, 124.3]],
+      "Cebu": [[9.5, 123.1], [11.3, 124.0]],
+      "Negros Oriental": [[9.0, 123.0], [9.9, 123.8]],
+      "Siquijor": [[9.1, 123.4], [9.3, 123.7]],
+      "Biliran": [[11.4, 124.3], [11.7, 124.6]],
+      "Eastern Samar": [[11.0, 125.0], [12.0, 125.8]],
+      "Leyte": [[10.4, 124.4], [11.4, 125.3]],
+      "Northern Samar": [[12.0, 124.0], [12.6, 124.8]],
+      "Samar": [[11.4, 124.7], [12.1, 125.3]],
+      "Southern Leyte": [[10.2, 124.8], [10.9, 125.3]],
+      "Zamboanga del Norte": [[7.5, 122.0], [8.7, 123.4]],
+      "Zamboanga del Sur": [[7.2, 122.9], [8.3, 123.7]],
+      "Zamboanga Sibugay": [[7.5, 122.4], [8.2, 123.0]],
+      "Bukidnon": [[7.5, 124.5], [8.5, 125.2]],
+      "Camiguin": [[9.0, 124.5], [9.3, 124.7]],
+      "Lanao del Norte": [[7.8, 123.7], [8.3, 124.3]],
+      "Misamis Occidental": [[8.2, 123.5], [8.8, 124.0]],
+      "Misamis Oriental": [[8.5, 124.3], [9.2, 125.0]],
+      "Compostela Valley": [[7.3, 126.0], [8.0, 126.5]],
+      "Davao del Norte": [[7.5, 125.5], [8.1, 126.1]],
+      "Davao del Sur": [[6.5, 125.1], [7.5, 125.7]],
+      "Davao Oriental": [[6.5, 126.0], [7.5, 127.0]],
+      "Cotabato": [[6.7, 124.3], [7.6, 125.0]],
+      "South Cotabato": [[6.2, 124.8], [6.9, 125.4]],
+      "Sultan Kudarat": [[6.4, 124.0], [7.0, 124.9]],
+      "Sarangani": [[5.4, 125.0], [6.4, 125.6]],
+      "Agusan del Norte": [[8.9, 125.3], [9.3, 125.8]],
+      "Agusan del Sur": [[8.0, 125.5], [8.9, 126.2]],
+      "Dinagat Islands": [[10.0, 125.5], [10.4, 126.0]],
+      "Surigao del Norte": [[9.6, 125.3], [10.3, 126.1]],
+      "Surigao del Sur": [[8.5, 125.9], [9.6, 126.3]],
+      "Basilan": [[6.3, 121.1], [6.7, 122.1]],
+      "Lanao del Sur": [[7.4, 123.9], [8.2, 124.5]],
+      "Maguindanao": [[6.8, 124.1], [7.4, 124.7]],
+      "Sulu": [[5.8, 120.9], [6.3, 121.2]],
+      "Tawi-Tawi": [[4.8, 119.5], [5.3, 120.3]]
+    };
+  </script>
+</body>
+</html>
