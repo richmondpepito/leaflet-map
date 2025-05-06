@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GT Cosmetics Route Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #map { height: 90vh; width: 100%; }
+    #controls {
+      padding: 10px;
+      background: #f0f0f0;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    #loading-spinner {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label for="regionFilter">Region:</label>
+    <select id="regionFilter">
+      <option value="all">All Regions</option>
+      <option value="Region I (Ilocos)">Region I (Ilocos)</option>
+      <option value="CAR">CAR</option>
+      <option value="Region II (Cagayan Valley)">Region II (Cagayan Valley)</option>
+      <option value="Region III (Central Luzon)">Region III (Central Luzon)</option>
+      <option value="NCR">NCR</option>
+      <option value="Region IV-A (CALABARZON)">Region IV-A (CALABARZON)</option>
+      <option value="Region IV-B (MIMAROPA)">Region IV-B (MIMAROPA)</option>
+      <option value="Region V (Bicol)">Region V (Bicol)</option>
+      <option value="Region VI (Western Visayas)">Region VI (Western Visayas)</option>
+      <option value="Region VII (Central Visayas)">Region VII (Central Visayas)</option>
+      <option value="Region VIII (Eastern Visayas)">Region VIII (Eastern Visayas)</option>
+      <option value="Region IX (Zamboanga Peninsula)">Region IX (Zamboanga Peninsula)</option>
+      <option value="Region X (Northern Mindanao)">Region X (Northern Mindanao)</option>
+      <option value="Region XI (Davao Region)">Region XI (Davao Region)</option>
+      <option value="Region XII (SOCCSKSARGEN)">Region XII (SOCCSKSARGEN)</option>
+      <option value="Region XIII (Caraga)">Region XIII (Caraga)</option>
+      <option value="BARMM">BARMM</option>
+    </select>
+    <div id="loading-spinner">Loading...</div>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([12.8797, 121.774], 6);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const regionBounds = {
+      "Region I (Ilocos)": [[15.6, 119.8], [18.8, 121.0]],
+      "CAR": [[16.1, 120.3], [18.0, 122.0]],
+      "Region II (Cagayan Valley)": [[15.5, 120.8], [18.5, 122.4]],
+      "Region III (Central Luzon)": [[14.5, 119.7], [16.5, 121.8]],
+      "NCR": [[14.4, 120.8], [14.8, 121.2]],
+      "Region IV-A (CALABARZON)": [[13.5, 120.5], [15.0, 122.0]],
+      "Region IV-B (MIMAROPA)": [[10.0, 118.0], [13.6, 122.5]],
+      "Region V (Bicol)": [[12.2, 123.2], [14.3, 124.4]],
+      "Region VI (Western Visayas)": [[10.3, 121.0], [12.2, 123.0]],
+      "Region VII (Central Visayas)": [[9.3, 122.5], [11.4, 124.2]],
+      "Region VIII (Eastern Visayas)": [[10.2, 124.3], [12.8, 126.0]],
+      "Region IX (Zamboanga Peninsula)": [[6.4, 121.5], [8.2, 123.8]],
+      "Region X (Northern Mindanao)": [[7.8, 123.0], [9.5, 125.5]],
+      "Region XI (Davao Region)": [[5.6, 125.0], [8.0, 127.0]],
+      "Region XII (SOCCSKSARGEN)": [[5.9, 124.0], [7.8, 126.0]],
+      "Region XIII (Caraga)": [[7.8, 125.0], [10.0, 127.0]],
+      "BARMM": [[4.5, 119.5], [7.8, 124.5]]
+    };
+
+    const regionFilter = document.getElementById('regionFilter');
+    const loadingSpinner = document.getElementById('loading-spinner');
+
+    let markers = [];
+    let polylines = [];
+
+    function updateMap() {
+      loadingSpinner.style.display = 'inline';
+
+      fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vQUSr0QU6ZbHQAd4GZVkrjI8LVmkN7FYNtEBVq_SNOqJNW1YkAiZhOrFlvfHchVRU6pzt6R9J86ApF5/pub?gid=0&single=true&output=csv')
+        .then(res => res.text())
+        .then(csv => {
+          const rows = csv.trim().split('\n').slice(1).map(line => line.split(','));
+          markers.forEach(m => map.removeLayer(m));
+          polylines.forEach(l => map.removeLayer(l));
+          markers = [];
+          polylines = [];
+
+          const selectedRegion = regionFilter.value;
+
+          rows.forEach(row => {
+            const [
+              routeType, originName, originLat, originLng,
+              destName, destLat, destLng,
+              destLoc, supervisor, region
+            ] = row;
+
+            if (selectedRegion !== 'all' && region !== selectedRegion) return;
+
+            const origin = [parseFloat(originLat), parseFloat(originLng)];
+            const dest = [parseFloat(destLat), parseFloat(destLng)];
+
+            const markerLabel =
+              parseFloat(destLat) === 10.380134047948756 && parseFloat(destLng) === 123.99598647262346
+              ? `GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu`
+              : `Route Type: ${routeType}<br>From: ${originName}<br>To: ${destName}<br>Location: ${destLoc}<br>Supervisor: ${supervisor}`;
+
+            const marker = L.marker(dest).bindTooltip(markerLabel, { direction: 'top' });
+            const polyline = L.polyline([origin, dest], { color: 'blue' });
+
+            marker.addTo(map);
+            polyline.addTo(map);
+
+            markers.push(marker);
+            polylines.push(polyline);
+          });
+
+          if (selectedRegion !== 'all' && regionBounds[selectedRegion]) {
+            map.fitBounds(regionBounds[selectedRegion], { padding: [20, 20] });
+          }
+        })
+        .finally(() => {
+          loadingSpinner.style.display = 'none';
+        });
+    }
+
+    regionFilter.addEventListener('change', updateMap);
+    updateMap();
+  </script>
+</body>
+</html>
