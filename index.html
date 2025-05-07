@@ -34,6 +34,7 @@
       'Region I': [[15.0, 118.0], [17.0, 121.0]],
       'CAR': [[12.0, 120.0], [17.0, 124.0]],
       // Define bounds for other regions as needed...
+      'Region II': [[16.0, 121.5], [19.0, 124.5]],
       'all': [[5.0, 115.0], [20.0, 125.0]] // General bounds for all Philippines
     };
 
@@ -66,8 +67,7 @@
         document.getElementById('warehouseTypeFilter').value = 'all';
         document.getElementById('supervisorFilter').value = 'all';
         document.getElementById('regionFilter').value = 'all';
-        map.setView([10.3157,123.8854], 6); // Reset the map to the default view
-        markerCluster.zoomToShowLayer(null); // Ensure all markers are visible
+        resetMapView();
         updateMap();
       });
     }
@@ -113,16 +113,21 @@
         });
       map.addLayer(gtMarker);
 
-      // Zoom to the selected region
+      // Zoom to the selected region or reset view
       if (rf !== 'all' && regionBounds[rf]) {
         const bounds = regionBounds[rf];
-        map.fitBounds(bounds); // Fit the map to the selected region's bounds
+        map.fitBounds(bounds); // Zoom to region bounds
       } else {
-        // If 'all' is selected, zoom out to show all routes
-        map.fitBounds(regionBounds['all']);
+        // If 'all' is selected, reset map view
+        resetMapView();
       }
 
       filt.forEach(draw);
+    }
+
+    function resetMapView(){
+      map.setView([10.3157,123.8854], 6); // Reset the map to Cebu Main location
+      map.fitBounds(regionBounds['all']); // Ensure all markers are visible
     }
 
     function draw(d){
