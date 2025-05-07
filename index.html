@@ -184,7 +184,7 @@
       switch (type.trim()) {
         case 'Sub-warehouse': return 'blue';
         case 'Satellite Warehouse': return 'green';
-        case 'Bin': return 'yellow';
+        case 'Bin': return 'red';
         default: return 'gray';
       }
     }
@@ -194,10 +194,10 @@
     function getSize(t){
       switch (t.trim()) {
         case 'Cebu Main to Sub-warehouse': return 6;
-        case 'Cebu Main to Bin': return 3;
-        case 'Sub-warehouse to Satellite Warehouse': return 5;
-        case 'Sub-warehouse to Bin': return 3;
-        case 'Satellite Warehouse to Bin': return 3;
+        case 'Cebu Main to Bin': return 2;
+        case 'Sub-warehouse to Satellite Warehouse': return 4;
+        case 'Sub-warehouse to Bin': return 2;
+        case 'Satellite Warehouse to Bin': return 2;
         default: return 4;
       }
     }
