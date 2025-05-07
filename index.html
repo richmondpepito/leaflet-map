@@ -30,6 +30,11 @@
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
+    const regionBounds = {
+      'Region I': [[15.0, 118.0], [17.0, 121.0]],
+      'CAR': [[12.0, 120.0], [17.0, 124.0]],
+      // Define bounds for other regions as needed...
+    };
 
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
@@ -47,20 +52,7 @@
       download: true,
       header: true,
       complete: res => {
-        // Filter out rows with invalid coordinates
-        allData = res.data.filter(row => {
-          const oLat = parseFloat(row['Origin Lat']);
-          const oLng = parseFloat(row['Origin Long']);
-          const dLat = parseFloat(row['Destination Lat']);
-          const dLng = parseFloat(row['Destination Long']);
-          
-          // Check if any of the coordinates are NaN (invalid)
-          return !isNaN(oLat) && !isNaN(oLng) && !isNaN(dLat) && !isNaN(dLng);
-        });
-
-        // Log the cleaned data to verify
-        console.log('Cleaned Data:', allData);
-
+        allData = res.data.filter(r => r['Route ID']);
         setup();
       }
     });
@@ -115,10 +107,15 @@
 
       const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
         .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
-          permanent: false,
+          permanent: true,
           direction:'top'
         });
       map.addLayer(gtMarker);
+
+      if (rf !== 'all' && regionBounds[rf]) {
+        const bounds = regionBounds[rf];
+        map.fitBounds(bounds); // Zoom into the selected region
+      }
 
       filt.forEach(draw);
     }
