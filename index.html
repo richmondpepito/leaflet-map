@@ -132,7 +132,9 @@
 
       lines.push(line);
 
-      const om = Math.abs(o[0] - 10.380134047948756) < 1e-4 && Math.abs(o[1] - 123.99598647262346) < 1e-4
+      // Show GT logo at Cebu Main location permanently
+      const cebuMainCoords = [10.3802, 123.9961]; // Use your provided coordinates
+      const om = Math.abs(o[0] - cebuMainCoords[0]) < 1e-4 && Math.abs(o[1] - cebuMainCoords[1]) < 1e-4
         ? L.marker(o, {icon: cebuIcon}).bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu').openTooltip()
         : L.circleMarker(o, {radius: getSize(d['Route Type']), color: getColor(d['Route Type'])}).bindTooltip(txt);
 
@@ -167,3 +169,4 @@
   </script>
 </body>
 </html>
+
