@@ -29,23 +29,22 @@
     const cebuIcon = L.icon({ iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png', iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32] });
 
     const regionBounds = {
-      "all": [[4.5,116],[20.5,127]], 
-      "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]], "Region II": [[16.2,121.3],[18.5,122.5]],
-      "Region III": [[14.5,119.5],[16.2,121.5]], "NCR": [[14.3,120.8],[14.8,121.2]], "Region IV-A": [[13.4,120.5],[15,122]],
-      "Region IV-B": [[11.8,118],[13.8,121.5]], "Region V": [[12.5,123.2],[14,124.5]], "Region VI": [[10.3,121],[11.8,123]],
-      "Region VII": [[9.2,122.2],[11.5,124]], "Region VIII": [[10.5,124.5],[12.5,126]], "Region IX": [[6,121],[8.5,123]],
-      "Region X": [[7.5,123.5],[9.5,125]], "Region XI": [[6.5,125],[8,126.5]], "Region XII": [[6,124],[7.8,126]],
-      "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
+      "all": [[4.5,116],[20.5,127]], "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]],
+      "Region II": [[16.2,121.3],[18.5,122.5]], "Region III": [[14.5,119.5],[16.2,121.5]], "NCR": [[14.3,120.8],[14.8,121.2]],
+      "Region IV-A": [[13.4,120.5],[15,122]], "Region IV-B": [[11.8,118],[13.8,121.5]], "Region V": [[12.5,123.2],[14,124.5]],
+      "Region VI": [[10.3,121],[11.8,123]], "Region VII": [[9.2,122.2],[11.5,124]], "Region VIII": [[10.5,124.5],[12.5,126]],
+      "Region IX": [[6,121],[8.5,123]], "Region X": [[7.5,123.5],[9.5,125]], "Region XI": [[6.5,125],[8,126.5]],
+      "Region XII": [[6,124],[7.8,126]], "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
     };
 
-    const map = L.map('map').setView([10.3157, 123.8854], 6);
+    const map = L.map('map').setView([10.3157,123.8854], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Add permanent Cebu Main Plant label
-    const cebuLatLng = [10.380134047948756, 123.99598647262346]; // Cebu Main Plant Coordinates
-    L.marker(cebuLatLng, { icon: cebuIcon })
-      .bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu')
-      .addTo(map);
+    const cebuMainLatLng = [10.3802, 123.9961];
+    // Add permanent Cebu Main Plant marker
+    L.marker(cebuMainLatLng, { icon: cebuIcon })
+      .addTo(map)
+      .bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu', { permanent: true, direction: 'right' });
 
     let allData = [], lines = [], markers = [];
 
@@ -89,9 +88,9 @@
       };
 
       document.getElementById('resetButton').onclick = () => {
-        document.getElementById('warehouseTypeFilter').value = 'all';
-        document.getElementById('supervisorFilter').value = 'all';
-        document.getElementById('regionFilter').value = 'all';
+        wf.value = 'all';
+        sf.value = 'all';
+        rf.value = 'all';
         map.fitBounds(regionBounds['all']);
         updateMap();
       };
@@ -120,50 +119,60 @@
       if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) return;
 
       const o=[oLat, oLng], u=[dLat, dLng];
-
-      const originTxt = d['Origin Name'] === 'GTCosmetics Manufacturing Inc.'
-        ? 'GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu'
-        : `
-<b>Route Type:</b> ${d['Route Type']}<br>
-<b>From:</b> ${d['Origin Name']}<br>
-<b>To:</b> ${d['Destination Name']}<br>
-<b>Location:</b> ${d['Destination Location']}<br>
-<b>Supervisor:</b> ${d['Supervisor']}`;
-
-      const destTxt = `
-<b>Route Type:</b> ${d['Route Type']}<br>
-<b>From:</b> ${d['Origin Name']}<br>
-<b>To:</b> ${d['Destination Name']}<br>
-<b>Location:</b> ${d['Destination Location']}<br>
-<b>Supervisor:</b> ${d['Supervisor']}`;
+      const originTxt = `
+Route Type: ${d['Route Type']}
+From: ${d['Origin Name']}
+To: ${d['Destination Name']}
+Location: ${d['Destination Location']}
+Supervisor: ${d['Supervisor']}`;
 
       const line = L.polyline([o,u], {
         color:getColor(d['Route Type']),
         weight:1.5,
         dashArray:getDash(d['Route Type'])
-      }).addTo(map).bindTooltip(destTxt);
+      }).addTo(map).bindTooltip(originTxt);
 
       lines.push(line);
 
-      const isCebuMain = Math.abs(o[0]-10.380134047948756)<1e-4 && Math.abs(o[1]-123.99598647262346)<1e-4;
+      const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
 
-      const om = isCebuMain
-        ? L.marker(o,{icon:cebuIcon}).bindTooltip(originTxt)
-        : L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(originTxt);
+      // Only add origin marker if it's not Cebu Main
+      if (!isCebuMain) {
+        const om = L.circleMarker(o, {
+          radius: getSize(d['Route Type']),
+          color: getColor(d['Route Type'])
+        }).bindTooltip(originTxt);
+        map.addLayer(om);
+        markers.push(om);
+      }
 
-      const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(destTxt);
-      map.addLayer(om); map.addLayer(dm);
-      markers.push(om, dm);
+      const dm = L.circleMarker(u, {
+        radius: getSize(d['Route Type']),
+        color: getColor(d['Route Type'])
+      }).bindTooltip(originTxt);
+      map.addLayer(dm);
+      markers.push(dm);
     }
 
     function getColor(t){ 
-      if(t.startsWith('Cebu Main')) return 'black'; 
-      if(t.includes('Satellite')) return 'green'; 
-      if(t.includes('Sub-warehouse')) return 'blue'; 
-      return 'gray'; 
+      if(t.startsWith('Cebu Main'))return'black'; 
+      if(t.includes('Satellite'))return'green'; 
+      if(t.includes('Sub-warehouse'))return'blue'; 
+      return'gray'; 
     }
+
     function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
-    function getSize(t){ return {'Cebu Main':6,'Cebu Main to Sub-warehouse':6,'Cebu Main to Bin':5,'Sub-warehouse to Satellite Warehouse':5,'Sub-warehouse to Bin':4,'Satellite Warehouse to Bin':3}[t] || 4; }
+
+    function getSize(t){ 
+      return {
+        'Cebu Main':6,
+        'Cebu Main to Sub-warehouse':6,
+        'Cebu Main to Bin':5,
+        'Sub-warehouse to Satellite Warehouse':5,
+        'Sub-warehouse to Bin':4,
+        'Satellite Warehouse to Bin':3
+      }[t] || 4; 
+    }
 
     function addLegend(){
       const legendControl = L.control({position:'bottomright'});
