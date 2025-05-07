@@ -155,7 +155,7 @@
         const om = L.circleMarker(o,{
           radius:getSize(d['Route Type']),
           color:getColor(d['Route Type']),
-          fillColor: getFillColor(d['Route Type']),
+          fillColor: getColor(d['Route Type']),
           fillOpacity: 0.7,
           weight: 2
         }).bindTooltip(txt);
@@ -195,15 +195,6 @@
         case 'Sub-warehouse to Bin': return 4;
         case 'Satellite Warehouse to Bin': return 3;
         default: return 4;
-      }
-    }
-
-    function getFillColor(type) {
-      switch (type) {
-        case 'Sub-warehouse': return 'blue';
-        case 'Satellite Warehouse': return 'green';
-        case 'Bin': return 'yellow';
-        default: return 'gray';
       }
     }
 
