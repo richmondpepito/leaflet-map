@@ -155,7 +155,8 @@
         const om = L.circleMarker(o,{
           radius:getSize(d['Route Type']),
           color:getColor(d['Route Type']),
-          fillOpacity: 0,
+          fillColor: getFillColor(d['Route Type']),
+          fillOpacity: 0.7,
           weight: 2
         }).bindTooltip(txt);
         map.addLayer(om);
@@ -165,7 +166,8 @@
       const dm = L.circleMarker(u,{
         radius:getDestinationSize(d['Warehouse Type']),
         color:getDestinationColor(d['Warehouse Type']),
-        fillOpacity: 0,
+        fillColor: getDestinationColor(d['Warehouse Type']),
+        fillOpacity: 0.7,
         weight: 2
       }).bindTooltip(txt);
       markerCluster.addLayer(dm);
@@ -196,6 +198,15 @@
       }
     }
 
+    function getFillColor(type) {
+      switch (type) {
+        case 'Sub-warehouse': return 'blue';
+        case 'Satellite Warehouse': return 'green';
+        case 'Bin': return 'yellow';
+        default: return 'gray';
+      }
+    }
+
     function getDestinationColor(type) {
       switch (type) {
         case 'Sub-warehouse': return 'blue';
@@ -219,10 +230,9 @@
       legendControl.onAdd = function(){
         const div = L.DomUtil.create('div','legend');
         div.innerHTML = `
-          <span style="background:black"></span> Cebu Main Routes<br>
-          <span style="background:blue"></span> Sub-warehouse Routes <br>
-          <span style="background:green"></span> Satellite to Bin Routes <br>
-          <span style="background:gray"></span> Unspecified Routes
+          <span style="background:blue"></span> Sub-warehouse Routes<br>
+          <span style="background:green"></span> Satellite Warehouse Routes <br>
+          <span style="background:yellow"></span> Bin Routes
         `;
         return div;
       };
