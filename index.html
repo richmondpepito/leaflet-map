@@ -152,15 +152,21 @@
       const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
 
       if (!isCebuMain) {
-        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
-          .bindTooltip(txt);
+        const om = L.circleMarker(o,{
+          radius:getSize(d['Route Type']),
+          color:getColor(d['Route Type']),
+          fillOpacity: 0,
+          weight: 2
+        }).bindTooltip(txt);
         map.addLayer(om);
         markers.push(om);
       }
 
-      const dm = L.circleMarker(u, {
-        radius: getDestinationSize(d['Destination Location']),
-        color: getDestinationColor(d['Destination Location'])
+      const dm = L.circleMarker(u,{
+        radius:getDestinationSize(d['Warehouse Type']),
+        color:getDestinationColor(d['Warehouse Type']),
+        fillOpacity: 0,
+        weight: 2
       }).bindTooltip(txt);
       markerCluster.addLayer(dm);
       markers.push(dm);
@@ -190,9 +196,8 @@
       }
     }
 
-    // New functions for marker color and size based on destination
-    function getDestinationColor(location) {
-      switch (location.trim()) {
+    function getDestinationColor(type) {
+      switch (type) {
         case 'Sub-warehouse': return 'blue';
         case 'Satellite Warehouse': return 'green';
         case 'Bin': return 'yellow';
@@ -200,12 +205,12 @@
       }
     }
 
-    function getDestinationSize(location) {
-      switch (location.trim()) {
-        case 'Sub-warehouse': return 7;  // Largest size
-        case 'Satellite Warehouse': return 5;  // Medium size
-        case 'Bin': return 3;  // Smallest size
-        default: return 4;
+    function getDestinationSize(type) {
+      switch (type) {
+        case 'Sub-warehouse': return 8;  // Larger for Sub-warehouse
+        case 'Satellite Warehouse': return 6;  // Smaller for Satellite
+        case 'Bin': return 4;  // Smallest for Bin
+        default: return 5;  // Default size for unspecified
       }
     }
 
@@ -216,8 +221,7 @@
         div.innerHTML = `
           <span style="background:black"></span> Cebu Main Routes<br>
           <span style="background:blue"></span> Sub-warehouse Routes <br>
-          <span style="background:green"></span> Satellite Warehouse Routes<br>
-          <span style="background:yellow"></span> Bin Routes<br>
+          <span style="background:green"></span> Satellite to Bin Routes <br>
           <span style="background:gray"></span> Unspecified Routes
         `;
         return div;
