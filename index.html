@@ -33,8 +33,21 @@
     const regionBounds = {
       'Region I': [[15.0, 118.0], [17.0, 121.0]],
       'CAR': [[12.0, 120.0], [17.0, 124.0]],
-      // Define bounds for other regions as needed...
       'Region II': [[16.0, 121.5], [19.0, 124.5]],
+      'Region III': [[14.0, 119.0], [17.5, 123.0]],
+      'NCR': [[14.3, 120.5], [14.8, 121.3]],
+      'Region IV-A': [[13.5, 120.5], [15.5, 123.5]],
+      'Region IV-B': [[12.0, 118.5], [14.5, 121.5]],
+      'Region V': [[12.0, 122.5], [14.5, 125.5]],
+      'Region VI': [[9.5, 122.5], [11.5, 124.5]],
+      'Region VII': [[9.0, 123.0], [11.5, 124.5]],
+      'Region VIII': [[10.0, 124.5], [12.5, 126.5]],
+      'Region IX': [[6.0, 121.5], [8.5, 124.5]],
+      'Region X': [[7.5, 124.0], [9.5, 126.5]],
+      'Region XI': [[6.5, 125.5], [8.5, 127.5]],
+      'Region XII': [[6.0, 124.5], [7.5, 126.5]],
+      'Region XIII': [[8.0, 125.0], [10.5, 127.5]],
+      'BARMM': [[5.5, 116.5], [7.5, 124.5]],
       'all': [[5.0, 115.0], [20.0, 125.0]] // General bounds for all Philippines
     };
 
@@ -106,11 +119,10 @@
         (rf==='all'||d['Regional Destination']===rf)
       );
 
+      // Add Cebu Main Marker
       const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
-        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
-          permanent: true,
-          direction:'top'
-        });
+        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu')
+        .addTo(map);
       map.addLayer(gtMarker);
 
       // Zoom to the selected region or reset view
