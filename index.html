@@ -2,116 +2,191 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Warehouse Routes Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+  <title>Warehouse Routes Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <style>
-    #map { height: 90vh; width: 100%; }
-    .legend { background: white; padding: 8px; font-size: 13px; line-height: 1.4; border-radius: 4px; border: 1px solid #ccc; }
-    .legend span { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: middle; }
+    #map { height: 600px; width: 100%; }
+    #filters { margin: 20px; font-family: Arial, sans-serif; }
+    #resetButton { padding: 6px 12px; margin-left:10px; }
+    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
+    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
   </style>
 </head>
 <body>
+  <div id="filters">
+    <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
+    <label>Supervisor: <select id="supervisorFilter"></select></label>
+    <label>Region: <select id="regionFilter"></select></label>
+    <button id="resetButton">Reset View</button>
+  </div>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
-    const map = L.map('map').setView([10.3157, 123.8854], 6);
-    const clusterGroup = L.markerClusterGroup();
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const cebuCoords = [10.3802, 123.9961];
 
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32],
-      popupAnchor: [0, -32]
+      iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
     });
 
-    const cebuMainLatLng = [10.3802, 123.9961];
+    const map = L.map('map').setView([10.3157,123.8854], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Cebu Main Permanent Logo
-    L.marker(cebuMainLatLng, { icon: cebuIcon })
-      .addTo(map)
-      .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
-        permanent: false,  // hover-only
-        direction: 'top'
-      });
+    let allData = [], lines = [], markers = [];
+    const markerCluster = L.markerClusterGroup();
+    map.addLayer(markerCluster);
 
     Papa.parse(sheetUrl, {
       download: true,
       header: true,
-      complete: (results) => {
-        const data = results.data.filter(row => row['Route ID']);
-
-        data.forEach(row => {
+      complete: res => {
+        // Filter out rows with invalid coordinates
+        allData = res.data.filter(row => {
           const oLat = parseFloat(row['Origin Lat']);
           const oLng = parseFloat(row['Origin Long']);
           const dLat = parseFloat(row['Destination Lat']);
           const dLng = parseFloat(row['Destination Long']);
-
-          if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) return;
-
-          const origin = [oLat, oLng];
-          const dest = [dLat, dLng];
-
-          const tooltipHtml = `
-<strong>Route Type:</strong> ${row['Route Type']}<br>
-<strong>From:</strong> ${row['Origin Name']}<br>
-<strong>To:</strong> ${row['Destination Name']}<br>
-<strong>Location:</strong> ${row['Destination Location']}<br>
-<strong>Supervisor:</strong> ${row['Supervisor']}
-          `;
-
-          // Draw line
-          const polyline = L.polyline([origin, dest], {
-            color: getColor(row['Route Type']),
-            weight: 2,
-            dashArray: row['Route Type'].includes('to Bin') ? '4,4' : null
-          }).bindTooltip(tooltipHtml);
-          polyline.addTo(map);
-
-          // Marker for destination (clustered)
-          const destMarker = L.circleMarker(dest, {
-            radius: 5,
-            color: getColor(row['Route Type']),
-            fillOpacity: 1
-          }).bindTooltip(tooltipHtml);
-          clusterGroup.addLayer(destMarker);
-
-          // Marker for origin if not Cebu Main (clustered)
-          if (!(oLat === 10.3802 && oLng === 123.9961)) {
-            const originMarker = L.circleMarker(origin, {
-              radius: 5,
-              color: getColor(row['Route Type']),
-              fillOpacity: 1
-            }).bindTooltip(tooltipHtml);
-            clusterGroup.addLayer(originMarker);
-          }
+          
+          // Check if any of the coordinates are NaN (invalid)
+          return !isNaN(oLat) && !isNaN(oLng) && !isNaN(dLat) && !isNaN(dLng);
         });
 
-        map.addLayer(clusterGroup);
-        addLegend();
+        // Log the cleaned data to verify
+        console.log('Cleaned Data:', allData);
+
+        setup();
       }
     });
 
-    function getColor(type) {
-      if (type.includes('Satellite')) return 'green';
-      if (type.includes('Sub-warehouse')) return 'blue';
-      if (type.includes('Bin')) return 'orange';
-      return 'black';
+    function setup() {
+      populateFilters();
+      updateMap();
+      addLegend();
+      document.getElementById('resetButton').addEventListener('click', () => {
+        document.getElementById('warehouseTypeFilter').value = 'all';
+        document.getElementById('supervisorFilter').value = 'all';
+        document.getElementById('regionFilter').value = 'all';
+        map.setView([10.3157,123.8854], 6);
+        markerCluster.zoomToShowLayer(null);
+        updateMap();
+      });
     }
 
-    function addLegend() {
-      const legend = L.control({ position: 'bottomright' });
-      legend.onAdd = function () {
-        const div = L.DomUtil.create('div', 'legend');
+    function populateFilters(){
+      const warehouseTypeSet = new Set(), supervisorSet = new Set(), regionSet = new Set();
+      allData.forEach(d => {
+        warehouseTypeSet.add(d['Warehouse Type']);
+        supervisorSet.add(d['Supervisor']);
+        regionSet.add(d['Regional Destination']);
+      });
+      fillSelect('warehouseTypeFilter', warehouseTypeSet);
+      fillSelect('supervisorFilter', supervisorSet);
+      fillSelect('regionFilter', regionSet);
+    }
+
+    function fillSelect(id, set){
+      const sel = document.getElementById(id);
+      sel.innerHTML = '<option value="all">All</option>';
+      Array.from(set).sort().forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
+      sel.addEventListener('change', updateMap);
+    }
+
+    function updateMap(){
+      lines.forEach(l=>map.removeLayer(l)); lines=[];
+      markers.forEach(m=>map.removeLayer(m)); markers=[];
+      markerCluster.clearLayers();
+
+      const wf = document.getElementById('warehouseTypeFilter').value;
+      const sf = document.getElementById('supervisorFilter').value;
+      const rf = document.getElementById('regionFilter').value;
+
+      const filt = allData.filter(d =>
+        (wf==='all'||d['Warehouse Type']===wf)&&
+        (sf==='all'||d['Supervisor']===sf)&&
+        (rf==='all'||d['Regional Destination']===rf)
+      );
+
+      const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
+        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
+          permanent: false,
+          direction:'top'
+        });
+      map.addLayer(gtMarker);
+
+      filt.forEach(draw);
+    }
+
+    function draw(d){
+      if (!d['Origin Lat'] || !d['Origin Long'] || !d['Destination Lat'] || !d['Destination Long']) return;
+
+      const oLat = +d['Origin Lat'], oLng = +d['Origin Long'];
+      const dLat = +d['Destination Lat'], dLng = +d['Destination Long'];
+
+      const o=[oLat, oLng], u=[dLat, dLng];
+      const txt = `
+<b>Route Type:</b> ${d['Route Type']}<br>
+<b>From:</b> ${d['Origin Name']}<br>
+<b>To:</b> ${d['Destination Name']}<br>
+<b>Location:</b> ${d['Destination Location']}<br>
+<b>Supervisor:</b> ${d['Supervisor']}`;
+
+      const line = L.polyline([o,u], {
+        color:getColor(d['Route Type']),
+        weight:1.5,
+        dashArray:getDash(d['Route Type'])
+      }).addTo(map).bindTooltip(txt);
+      lines.push(line);
+
+      const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
+
+      if (!isCebuMain) {
+        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
+          .bindTooltip(txt);
+        map.addLayer(om);
+        markers.push(om);
+      }
+
+      const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
+        .bindTooltip(txt);
+      markerCluster.addLayer(dm);
+      markers.push(dm);
+    }
+
+    function getColor(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 'black';
+        case 'Cebu Main to Bin': return 'black';
+        case 'Sub-warehouse to Satellite Warehouse': return 'blue';
+        case 'Sub-warehouse to Bin': return 'blue';
+        case 'Satellite Warehouse to Bin': return 'green';
+        default: return 'gray';
+      }
+    }
+
+    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
+
+    function getSize(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 6;
+        case 'Cebu Main to Bin': return 6;
+        case 'Sub-warehouse to Satellite Warehouse': return 5;
+        case 'Sub-warehouse to Bin': return 4;
+        case 'Satellite Warehouse to Bin': return 3;
+        default: return 4;
+      }
+    }
+
+    function addLegend(){
+      const legendControl = L.control({position:'bottomright'});
+      legendControl.onAdd = function(){
+        const div = L.DomUtil.create('div','legend');
         div.innerHTML = `
           <span style="background:black"></span> Cebu Main<br>
           <span style="background:blue"></span> Sub-warehouse<br>
@@ -120,7 +195,7 @@
         `;
         return div;
       };
-      legend.addTo(map);
+      legendControl.addTo(map);
     }
   </script>
 </body>
