@@ -42,10 +42,14 @@
 
     const cebuMainLatLng = [10.3802, 123.9961];
 
-    // Cebu icon (hover only)
+    // Cebu Main icon (hover tooltip only)
     L.marker(cebuMainLatLng, { icon: cebuIcon })
       .addTo(map)
-      .bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu');
+      .bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu', {
+        permanent: false,
+        direction: 'top',
+        sticky: true
+      });
 
     let allData = [], lines = [], markers = [];
 
@@ -120,12 +124,14 @@
       if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) return;
 
       const o=[oLat, oLng], u=[dLat, dLng];
+
       const tooltipContent = `
-Route Type: ${d['Route Type']}<br>
-From: ${d['Origin Name']}<br>
-To: ${d['Destination Name']}<br>
-Location: ${d['Destination Location']}<br>
-Supervisor: ${d['Supervisor']}`;
+        <b>Route Type:</b> ${d['Route Type']}<br>
+        <b>From:</b> ${d['Origin Name']}<br>
+        <b>To:</b> ${d['Destination Name']}<br>
+        <b>Location:</b> ${d['Destination Location']}<br>
+        <b>Supervisor:</b> ${d['Supervisor']}
+      `;
 
       const line = L.polyline([o,u], {
         color:getColor(d['Route Type']),
