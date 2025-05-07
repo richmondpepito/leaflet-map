@@ -12,7 +12,7 @@
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
 
-    /* Tooltip CSS to ensure line breaks work and prevent wrapping */
+    /* Tooltip CSS to ensure proper display of content in single lines */
     .leaflet-tooltip {
       white-space: pre;
       max-width: none;
@@ -139,10 +139,12 @@
 
       lines.push(line);
 
+      // Cebu Main Plant with permanent logo
       const om = Math.abs(o[0]-10.380134047948756)<1e-4 && Math.abs(o[1]-123.99598647262346)<1e-4
         ? L.marker(o,{icon:cebuIcon}).bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu', { sticky: true })
         : L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(txt);
 
+      // Destination marker
       const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(txt);
       map.addLayer(om); map.addLayer(dm);
       markers.push(om, dm);
