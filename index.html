@@ -9,8 +9,16 @@
     #map { height: 600px; width: 100%; }
     #filters { margin: 20px; font-family: Arial, sans-serif; }
     #resetButton { padding: 6px 12px; margin-left:10px; }
-    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
-    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+    .legend {
+      background:white; padding:8px;
+      font-size:12px; line-height:1.4;
+      border-radius:4px; border:1px solid #ccc;
+    }
+    .legend span {
+      display:inline-block; width:12px;
+      height:12px; margin-right:4px;
+      vertical-align:middle;
+    }
   </style>
 </head>
 <body>
@@ -26,7 +34,15 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
-    const cebuIcon = L.icon({ iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png', iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32] });
+    const cebuIcon = L.icon({
+      iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
+
+    const cebuLat = 10.3802;
+    const cebuLng = 123.9961;
 
     const regionBounds = {
       "all": [[4.5,116],[20.5,127]],
@@ -54,9 +70,9 @@
 
     function setup() {
       populateFilters();
-      addCebuMainMarker();
       updateMap();
       addLegend();
+      addCebuMainMarker();
     }
 
     function populateFilters(){
@@ -84,36 +100,26 @@
       };
 
       document.getElementById('resetButton').onclick = () => {
-        document.getElementById('warehouseTypeFilter').value = 'all';
-        document.getElementById('supervisorFilter').value = 'all';
-        document.getElementById('regionFilter').value = 'all';
+        wf.value = 'all';
+        sf.value = 'all';
+        rf.value = 'all';
         map.fitBounds(regionBounds['all']);
         updateMap();
       };
     }
 
-    function addCebuMainMarker() {
-      const cebuMainLatLng = [10.3802, 123.9961];
-      L.marker(cebuMainLatLng, { icon: cebuIcon })
-        .addTo(map)
-        .bindTooltip(
-          'GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu',
-          { permanent: false, direction: 'top', sticky: true }
-        );
-    }
-
     function updateMap(){
-      lines.forEach(l=>map.removeLayer(l)); lines=[];
-      markers.forEach(m=>map.removeLayer(m)); markers=[];
+      lines.forEach(l => map.removeLayer(l)); lines = [];
+      markers.forEach(m => map.removeLayer(m)); markers = [];
 
       const wf = document.getElementById('warehouseTypeFilter').value;
       const sf = document.getElementById('supervisorFilter').value;
       const rf = document.getElementById('regionFilter').value;
 
       const filt = allData.filter(d =>
-        (wf==='all'||d['Warehouse Type']===wf)&&
-        (sf==='all'||d['Supervisor']===sf)&&
-        (rf==='all'||d['Regional Destination']===rf)
+        (wf === 'all' || d['Warehouse Type'] === wf) &&
+        (sf === 'all' || d['Supervisor'] === sf) &&
+        (rf === 'all' || d['Regional Destination'] === rf)
       );
 
       filt.forEach(draw);
@@ -124,37 +130,73 @@
       const dLat = +d['Destination Lat'], dLng = +d['Destination Long'];
       if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) return;
 
-      const o=[oLat, oLng], u=[dLat, dLng];
+      const origin = [oLat, oLng], dest = [dLat, dLng];
 
-      const tooltipContent = `
-        Route Type: ${d['Route Type']}<br>
-        From: ${d['Origin Name']}<br>
-        To: ${d['Destination Name']}<br>
-        Location: ${d['Destination Location']}<br>
-        Supervisor: ${d['Supervisor']}
-      `;
+      const tooltipContent =
+        `Route Type: ${d['Route Type']}\n` +
+        `From: ${d['Origin Name']}\n` +
+        `To: ${d['Destination Name']}\n` +
+        `Location: ${d['Destination Location']}\n` +
+        `Supervisor: ${d['Supervisor']}`;
 
-      const line = L.polyline([o,u], {
-        color:getColor(d['Route Type']),
-        weight:1.5,
-        dashArray:getDash(d['Route Type'])
-      }).addTo(map).bindTooltip(tooltipContent, { sticky: true });
-
+      const line = L.polyline([origin, dest], {
+        color: getColor(d['Route Type']),
+        weight: 1.5,
+        dashArray: getDash(d['Route Type'])
+      }).addTo(map).bindTooltip(tooltipContent, { sticky: true, className: '' });
       lines.push(line);
 
-      const isCebuMain = Math.abs(o[0] - 10.3802) < 1e-4 && Math.abs(o[1] - 123.9961) < 1e-4;
-      const om = isCebuMain ? null : L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(tooltipContent, { sticky:true });
-      const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(tooltipContent, { sticky:true });
+      const isCebuMain = Math.abs(oLat - cebuLat) < 1e-4 && Math.abs(oLng - cebuLng) < 1e-4;
 
-      if (om) map.addLayer(om);
-      map.addLayer(dm);
-      if (om) markers.push(om);
-      markers.push(dm);
+      const originMarker = isCebuMain
+        ? L.marker(origin, { icon: cebuIcon }).bindTooltip(
+            'GTCosmetics Manufacturing Inc.\nMain Plant\nTayud, Liloan, Cebu',
+            { sticky: true, direction: 'top', className: '' }
+          )
+        : L.circleMarker(origin, {
+            radius: getSize(d['Route Type']),
+            color: getColor(d['Route Type'])
+          }).bindTooltip(tooltipContent, { sticky: true, className: '' });
+
+      const destMarker = L.circleMarker(dest, {
+        radius: getSize(d['Route Type']),
+        color: getColor(d['Route Type'])
+      }).bindTooltip(tooltipContent, { sticky: true, className: '' });
+
+      map.addLayer(originMarker);
+      map.addLayer(destMarker);
+      markers.push(originMarker, destMarker);
     }
 
-    function getColor(t){ if(t.startsWith('Cebu Main'))return'black'; if(t.includes('Satellite'))return'green'; if(t.includes('Sub-warehouse'))return'blue'; return'gray'; }
-    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
-    function getSize(t){ return {'Cebu Main':6,'Cebu Main to Sub-warehouse':6,'Cebu Main to Bin':5,'Sub-warehouse to Satellite Warehouse':5,'Sub-warehouse to Bin':4,'Satellite Warehouse to Bin':3}[t]||4; }
+    function addCebuMainMarker() {
+      const marker = L.marker([cebuLat, cebuLng], { icon: cebuIcon }).bindTooltip(
+        'GTCosmetics Manufacturing Inc.\nMain Plant\nTayud, Liloan, Cebu',
+        { sticky: true, direction: 'top', className: '' }
+      );
+      map.addLayer(marker);
+    }
+
+    function getColor(t){
+      if (t.startsWith('Cebu Main')) return 'black';
+      if (t.includes('Satellite')) return 'green';
+      if (t.includes('Sub-warehouse')) return 'blue';
+      return 'gray';
+    }
+
+    function getDash(t){
+      return t.includes('to Bin') ? '5,5' : null;
+    }
+
+    function getSize(t){
+      return {
+        'Cebu Main': 6,
+        'Cebu Main to Sub-warehouse': 6,
+        'Cebu Main to Bin': 5,
+        'Sub-warehouse to Satellite Warehouse': 5,
+        'Sub-warehouse to Bin': 4,
+        'Satellite Warehouse to Bin': 3
+      }[t] || 4;
+    }
 
     function addLegend(){
       const legendControl = L.control({position:'bottomright'});
