@@ -11,7 +11,11 @@
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
-    .tooltip-bold { font-weight: bold; }
+    /* CSS for tooltips to ensure they wrap correctly */
+    .leaflet-tooltip-html {
+      white-space: normal !important;
+      max-width: 200px !important;
+    }
   </style>
 </head>
 <body>
@@ -27,20 +31,19 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
-    const cebuIcon = L.icon({
-      iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32],
-      popupAnchor: [0, -32]
-    });
+    const cebuIcon = L.icon({ iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png', iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32] });
 
     const regionBounds = {
-      "all": [[4.5,116],[20.5,127]], // Example bounds
-      "Region I": [[15.6,119.5],[18.7,121.5]],
-      // Add other regions as needed
+      "all": [[4.5,116],[20.5,127]], 
+      "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]], "Region II": [[16.2,121.3],[18.5,122.5]], 
+      "Region III": [[14.5,119.5],[16.2,121.5]], "NCR": [[14.3,120.8],[14.8,121.2]], "Region IV-A": [[13.4,120.5],[15,122]],
+      "Region IV-B": [[11.8,118],[13.8,121.5]], "Region V": [[12.5,123.2],[14,124.5]], "Region VI": [[10.3,121],[11.8,123]],
+      "Region VII": [[9.2,122.2],[11.5,124]], "Region VIII": [[10.5,124.5],[12.5,126]], "Region IX": [[6,121],[8.5,123]],
+      "Region X": [[7.5,123.5],[9.5,125]], "Region XI": [[6.5,125],[8,126.5]], "Region XII": [[6,124],[7.8,126]],
+      "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
     };
 
-    const map = L.map('map').setView([10.3157,123.8854], 6);
+    const map = L.map('map').setView([10.3157, 123.8854], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let allData = [], lines = [], markers = [];
@@ -61,20 +64,20 @@
     }
 
     function populateFilters(){
-      const w = new Set(), s = new Set(), r = new Set();
+      const w=new Set(), s=new Set(), r=new Set();
       allData.forEach(d => {
         w.add(d['Warehouse Type']);
         s.add(d['Supervisor']);
         r.add(d['Regional Destination']);
       });
 
-      const wf = document.getElementById('warehouseTypeFilter'),
-            sf = document.getElementById('supervisorFilter'),
-            rf = document.getElementById('regionFilter');
+      const wf=document.getElementById('warehouseTypeFilter'),
+            sf=document.getElementById('supervisorFilter'),
+            rf=document.getElementById('regionFilter');
 
-      wf.innerHTML = '<option value="all">All</option>' + [...w].map(i => `<option>${i}</option>`).join('');
-      sf.innerHTML = '<option value="all">All</option>' + [...s].map(i => `<option>${i}</option>`).join('');
-      rf.innerHTML = '<option value="all">All</option>' + [...r].map(i => `<option>${i}</option>`).join('');
+      wf.innerHTML='<option value="all">All</option>'+[...w].map(i=>`<option>${i}</option>`).join('');
+      sf.innerHTML='<option value="all">All</option>'+[...s].map(i=>`<option>${i}</option>`).join('');
+      rf.innerHTML='<option value="all">All</option>'+[...r].map(i=>`<option>${i}</option>`).join('');
 
       wf.onchange = updateMap;
       sf.onchange = updateMap;
@@ -94,17 +97,17 @@
     }
 
     function updateMap(){
-      lines.forEach(l => map.removeLayer(l)); lines = [];
-      markers.forEach(m => map.removeLayer(m)); markers = [];
+      lines.forEach(l=>map.removeLayer(l)); lines=[];
+      markers.forEach(m=>map.removeLayer(m)); markers=[];
 
       const wf = document.getElementById('warehouseTypeFilter').value;
       const sf = document.getElementById('supervisorFilter').value;
       const rf = document.getElementById('regionFilter').value;
 
       const filt = allData.filter(d =>
-        (wf === 'all' || d['Warehouse Type'] === wf) &&
-        (sf === 'all' || d['Supervisor'] === sf) &&
-        (rf === 'all' || d['Regional Destination'] === rf)
+        (wf==='all'||d['Warehouse Type']===wf)&&
+        (sf==='all'||d['Supervisor']===sf)&&
+        (rf==='all'||d['Regional Destination']===rf)
       );
 
       filt.forEach(draw);
@@ -115,48 +118,39 @@
       const dLat = +d['Destination Lat'], dLng = +d['Destination Long'];
       if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) return;
 
-      const o = [oLat, oLng], u = [dLat, dLng];
+      const o=[oLat, oLng], u=[dLat, dLng];
       const txt = `
-        <span class="tooltip-bold">Route Type:</span> ${d['Route Type']}<br>
-        <span class="tooltip-bold">From:</span> ${d['Origin Name']}<br>
-        <span class="tooltip-bold">To:</span> ${d['Destination Name']}<br>
-        <span class="tooltip-bold">Location:</span> ${d['Destination Location']}<br>
-        <span class="tooltip-bold">Supervisor:</span> ${d['Supervisor']}
-      `;
+<b>Route Type:</b> ${d['Route Type']}<br>
+<b>From:</b> ${d['Origin Name']}<br>
+<b>To:</b> ${d['Destination Name']}<br>
+<b>Location:</b> ${d['Destination Location']}<br>
+<b>Supervisor:</b> ${d['Supervisor']}`;
 
-      const line = L.polyline([o, u], {
-        color: getColor(d['Route Type']),
-        weight: 1.5,
-        dashArray: getDash(d['Route Type'])
+      const line = L.polyline([o,u], {
+        color:getColor(d['Route Type']),
+        weight:1.5,
+        dashArray:getDash(d['Route Type'])
       }).addTo(map).bindTooltip(txt);
 
       lines.push(line);
 
-      // Show GT logo at Cebu Main location permanently
-      const cebuMainCoords = [10.3802, 123.9961]; // Use your provided coordinates
-      const om = Math.abs(o[0] - cebuMainCoords[0]) < 1e-4 && Math.abs(o[1] - cebuMainCoords[1]) < 1e-4
-        ? L.marker(o, {icon: cebuIcon}).bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu').openTooltip()
-        : L.circleMarker(o, {radius: getSize(d['Route Type']), color: getColor(d['Route Type'])}).bindTooltip(txt);
+      const om = (Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4)
+        ? L.marker(o,{icon:cebuIcon}).bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu').openTooltip()
+        : L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(txt);
 
-      const dm = L.circleMarker(u, {radius: getSize(d['Route Type']), color: getColor(d['Route Type'])}).bindTooltip(txt);
+      const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(txt);
       map.addLayer(om); map.addLayer(dm);
       markers.push(om, dm);
     }
 
-    function getColor(t) {
-      if (t.startsWith('Cebu Main')) return 'black';
-      if (t.includes('Satellite')) return 'green';
-      if (t.includes('Sub-warehouse')) return 'blue';
-      return 'gray';
-    }
-
-    function getDash(t) { return t.includes('to Bin') ? '5,5' : null; }
-    function getSize(t) { return {'Cebu Main': 6, 'Cebu Main to Sub-warehouse': 6, 'Cebu Main to Bin': 5, 'Sub-warehouse to Satellite Warehouse': 5, 'Sub-warehouse to Bin': 4, 'Satellite Warehouse to Bin': 3}[t] || 4; }
+    function getColor(t){ if(t.startsWith('Cebu Main'))return'black'; if(t.includes('Satellite'))return'green'; if(t.includes('Sub-warehouse'))return'blue'; return'gray'; }
+    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
+    function getSize(t){ return {'Cebu Main':6,'Cebu Main to Sub-warehouse':6,'Cebu Main to Bin':5,'Sub-warehouse to Satellite Warehouse':5,'Sub-warehouse to Bin':4,'Satellite Warehouse to Bin':3}[t]||4; }
 
     function addLegend(){
-      const legendControl = L.control({position: 'bottomright'});
+      const legendControl = L.control({position:'bottomright'});
       legendControl.onAdd = function(){
-        const div = L.DomUtil.create('div', 'legend');
+        const div = L.DomUtil.create('div','legend');
         div.innerHTML = `
           <span style="background:black"></span> Cebu Main<br>
           <span style="background:blue"></span> Sub-warehouse<br>
