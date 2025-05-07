@@ -11,6 +11,14 @@
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+    .leaflet-tooltip.custom-tooltip {
+      white-space: nowrap;
+      background: rgba(255,255,255,0.95);
+      padding: 4px 8px;
+      border: 1px solid #999;
+      font-size: 12px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -26,7 +34,13 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
-    const cebuIcon = L.icon({ iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png', iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32] });
+
+    const cebuIcon = L.icon({
+      iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
 
     const regionBounds = {
       "all": [[4.5,116],[20.5,127]],
@@ -83,9 +97,7 @@
       };
 
       document.getElementById('resetButton').onclick = () => {
-        wf.value = 'all';
-        sf.value = 'all';
-        rf.value = 'all';
+        wf.value = sf.value = rf.value = 'all';
         map.fitBounds(regionBounds['all']);
         updateMap();
       };
@@ -114,27 +126,30 @@
       if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) return;
 
       const o=[oLat, oLng], u=[dLat, dLng];
-      const txt = `
-Route Type: ${d['Route Type']}
-From: ${d['Origin Name']}
-To: ${d['Destination Name']}
-Location: ${d['Destination Location']}
-Supervisor: ${d['Supervisor']}`;
+      const tooltipContent = `
+        <strong>Route Type:</strong> ${d['Route Type']}<br>
+        <strong>From:</strong> ${d['Origin Name']}<br>
+        <strong>To:</strong> ${d['Destination Name']}<br>
+        <strong>Location:</strong> ${d['Destination Location']}<br>
+        <strong>Supervisor:</strong> ${d['Supervisor']}
+      `;
 
       const line = L.polyline([o,u], {
         color:getColor(d['Route Type']),
         weight:1.5,
         dashArray:getDash(d['Route Type'])
-      }).addTo(map).bindTooltip(txt);
-
+      }).addTo(map).bindTooltip(tooltipContent, { className: 'custom-tooltip' });
       lines.push(line);
 
       const isCebuMain = Math.abs(o[0]-10.380134047948756)<1e-4 && Math.abs(o[1]-123.99598647262346)<1e-4;
-      const om = isCebuMain
-        ? L.marker(o,{icon:cebuIcon}).bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu')
-        : L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(txt);
 
-      const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(txt);
+      const om = isCebuMain
+        ? L.marker(o,{icon:cebuIcon}).bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu', { className: 'custom-tooltip' })
+        : L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])}).bindTooltip(tooltipContent, { className: 'custom-tooltip' });
+
+      const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
+        .bindTooltip(tooltipContent, { className: 'custom-tooltip' });
+
       map.addLayer(om); map.addLayer(dm);
       markers.push(om, dm);
     }
@@ -146,7 +161,9 @@ Supervisor: ${d['Supervisor']}`;
       return 'gray';
     }
 
-    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
+    function getDash(t){
+      return t.includes('to Bin') ? '5,5' : null;
+    }
 
     function getSize(t){
       return {
@@ -175,3 +192,4 @@ Supervisor: ${d['Supervisor']}`;
   </script>
 </body>
 </html>
+
