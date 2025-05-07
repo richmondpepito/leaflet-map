@@ -30,26 +30,6 @@
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
-    const regionBounds = {
-      'Region I': [[15.0, 118.0], [17.0, 121.0]],
-      'CAR': [[12.0, 120.0], [17.0, 124.0]],
-      'Region II': [[16.0, 121.5], [19.0, 124.5]],
-      'Region III': [[14.0, 119.0], [17.5, 123.0]],
-      'NCR': [[14.3, 120.5], [14.8, 121.3]],
-      'Region IV-A': [[13.5, 120.5], [15.5, 123.5]],
-      'Region IV-B': [[12.0, 118.5], [14.5, 121.5]],
-      'Region V': [[12.0, 122.5], [14.5, 125.5]],
-      'Region VI': [[9.5, 122.5], [11.5, 124.5]],
-      'Region VII': [[9.0, 123.0], [11.5, 124.5]],
-      'Region VIII': [[10.0, 124.5], [12.5, 126.5]],
-      'Region IX': [[6.0, 121.5], [8.5, 124.5]],
-      'Region X': [[7.5, 124.0], [9.5, 126.5]],
-      'Region XI': [[6.5, 125.5], [8.5, 127.5]],
-      'Region XII': [[6.0, 124.5], [7.5, 126.5]],
-      'Region XIII': [[8.0, 125.0], [10.5, 127.5]],
-      'BARMM': [[5.5, 116.5], [7.5, 124.5]],
-      'all': [[5.0, 115.0], [20.0, 125.0]] // General bounds for all Philippines
-    };
 
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
@@ -58,6 +38,16 @@
 
     const map = L.map('map').setView([10.3157,123.8854], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    const regionBounds = {
+      "all": [[4.5,116],[20.5,127]], 
+      "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]], "Region II": [[16.2,121.3],[18.5,122.5]], 
+      "Region III": [[14.5,119.5],[16.2,121.5]], "NCR": [[14.3,120.8],[14.8,121.2]], "Region IV-A": [[13.4,120.5],[15,122]],
+      "Region IV-B": [[11.8,118],[13.8,121.5]], "Region V": [[12.5,123.2],[14,124.5]], "Region VI": [[10.3,121],[11.8,123]],
+      "Region VII": [[9.2,122.2],[11.5,124]], "Region VIII": [[10.5,124.5],[12.5,126]], "Region IX": [[6,121],[8.5,123]],
+      "Region X": [[7.5,123.5],[9.5,125]], "Region XI": [[6.5,125],[8,126.5]], "Region XII": [[6,124],[7.8,126]],
+      "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
+    };
 
     let allData = [], lines = [], markers = [];
     const markerCluster = L.markerClusterGroup();
@@ -80,7 +70,6 @@
         document.getElementById('warehouseTypeFilter').value = 'all';
         document.getElementById('supervisorFilter').value = 'all';
         document.getElementById('regionFilter').value = 'all';
-        resetMapView();
         updateMap();
       });
     }
@@ -119,27 +108,24 @@
         (rf==='all'||d['Regional Destination']===rf)
       );
 
-      // Add Cebu Main Marker
       const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
-        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu')
-        .addTo(map);
+        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
+          permanent: false,
+          direction:'top'
+        });
       map.addLayer(gtMarker);
-
-      // Zoom to the selected region or reset view
-      if (rf !== 'all' && regionBounds[rf]) {
-        const bounds = regionBounds[rf];
-        map.fitBounds(bounds); // Zoom to region bounds
-      } else {
-        // If 'all' is selected, reset map view
-        resetMapView();
-      }
+      markers.push(gtMarker);
 
       filt.forEach(draw);
-    }
 
-    function resetMapView(){
-      map.setView([10.3157,123.8854], 6); // Reset the map to Cebu Main location
-      map.fitBounds(regionBounds['all']); // Ensure all markers are visible
+      if (rf !== 'all' && regionBounds[rf]) {
+        map.fitBounds(regionBounds[rf]);
+      } else if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.2));
+      } else {
+        map.setView([10.3157,123.8854], 6);
+      }
     }
 
     function draw(d){
@@ -172,8 +158,10 @@
         markers.push(om);
       }
 
-      const dm = L.circleMarker(u,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
-        .bindTooltip(txt);
+      const dm = L.circleMarker(u, {
+        radius: getDestinationSize(d['Destination Location']),
+        color: getDestinationColor(d['Destination Location'])
+      }).bindTooltip(txt);
       markerCluster.addLayer(dm);
       markers.push(dm);
     }
@@ -202,15 +190,35 @@
       }
     }
 
+    // New functions for marker color and size based on destination
+    function getDestinationColor(location) {
+      switch (location.trim()) {
+        case 'Sub-warehouse': return 'blue';
+        case 'Satellite Warehouse': return 'green';
+        case 'Bin': return 'yellow';
+        default: return 'gray';
+      }
+    }
+
+    function getDestinationSize(location) {
+      switch (location.trim()) {
+        case 'Sub-warehouse': return 7;  // Largest size
+        case 'Satellite Warehouse': return 5;  // Medium size
+        case 'Bin': return 3;  // Smallest size
+        default: return 4;
+      }
+    }
+
     function addLegend(){
       const legendControl = L.control({position:'bottomright'});
       legendControl.onAdd = function(){
         const div = L.DomUtil.create('div','legend');
         div.innerHTML = `
-          <span style="background:black"></span> Cebu Main<br>
-          <span style="background:blue"></span> Sub-warehouse<br>
-          <span style="background:green"></span> Satellite Warehouse<br>
-          <span style="background:orange"></span> Bin
+          <span style="background:black"></span> Cebu Main Routes<br>
+          <span style="background:blue"></span> Sub-warehouse Routes <br>
+          <span style="background:green"></span> Satellite Warehouse Routes<br>
+          <span style="background:yellow"></span> Bin Routes<br>
+          <span style="background:gray"></span> Unspecified Routes
         `;
         return div;
       };
