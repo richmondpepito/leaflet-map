@@ -41,10 +41,11 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const cebuMainLatLng = [10.3802, 123.9961];
-    // Add permanent Cebu Main Plant marker
+
+    // Cebu icon (hover only)
     L.marker(cebuMainLatLng, { icon: cebuIcon })
       .addTo(map)
-      .bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu', { permanent: true, direction: 'right' });
+      .bindTooltip('GTCosmetics Manufacturing Inc.<br>Main Plant<br>Tayud, Liloan, Cebu');
 
     let allData = [], lines = [], markers = [];
 
@@ -119,29 +120,28 @@
       if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) return;
 
       const o=[oLat, oLng], u=[dLat, dLng];
-      const originTxt = `
-Route Type: ${d['Route Type']}
-From: ${d['Origin Name']}
-To: ${d['Destination Name']}
-Location: ${d['Destination Location']}
+      const tooltipContent = `
+Route Type: ${d['Route Type']}<br>
+From: ${d['Origin Name']}<br>
+To: ${d['Destination Name']}<br>
+Location: ${d['Destination Location']}<br>
 Supervisor: ${d['Supervisor']}`;
 
       const line = L.polyline([o,u], {
         color:getColor(d['Route Type']),
         weight:1.5,
         dashArray:getDash(d['Route Type'])
-      }).addTo(map).bindTooltip(originTxt);
+      }).addTo(map).bindTooltip(tooltipContent);
 
       lines.push(line);
 
       const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
 
-      // Only add origin marker if it's not Cebu Main
       if (!isCebuMain) {
         const om = L.circleMarker(o, {
           radius: getSize(d['Route Type']),
           color: getColor(d['Route Type'])
-        }).bindTooltip(originTxt);
+        }).bindTooltip(tooltipContent);
         map.addLayer(om);
         markers.push(om);
       }
@@ -149,7 +149,7 @@ Supervisor: ${d['Supervisor']}`;
       const dm = L.circleMarker(u, {
         radius: getSize(d['Route Type']),
         color: getColor(d['Route Type'])
-      }).bindTooltip(originTxt);
+      }).bindTooltip(tooltipContent);
       map.addLayer(dm);
       markers.push(dm);
     }
