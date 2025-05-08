@@ -13,6 +13,21 @@
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+    
+    /* Search bar styles */
+    #search-container {
+      position: relative;
+      margin: 20px;
+      width: 300px;
+    }
+    #searchInput {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
     .autocomplete-suggestions {
       position: absolute;
       top: 40px;
@@ -24,13 +39,21 @@
       overflow-y: auto;
       z-index: 9999;
       box-sizing: border-box;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     .autocomplete-suggestion {
       padding: 8px;
       cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s ease;
     }
     .autocomplete-suggestion:hover {
-      background-color: #ddd;
+      background-color: #f0f0f0;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #007bff;
     }
   </style>
 </head>
@@ -41,10 +64,12 @@
     <label>Region: <select id="regionFilter"></select></label>
     <button id="resetButton">Reset View</button>
   </div>
+  
   <div id="search-container">
     <input id="searchInput" type="text" placeholder="Search warehouse..." />
     <div id="searchResults" class="autocomplete-suggestions"></div>
   </div>
+
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
@@ -53,7 +78,6 @@
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
-
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
       iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
@@ -222,58 +246,20 @@
     function getSize(t){
       switch (t.trim()) {
         case 'Cebu Main to Sub-warehouse': return 6;
-        case 'Cebu Main to Bin': return 2;
+        case 'Cebu Main to Bin': return 3;
         case 'Sub-warehouse to Satellite Warehouse': return 4;
-        case 'Sub-warehouse to Bin': return 2;
-        case 'Satellite Warehouse to Bin': return 2;
-        default: return 4;
+        case 'Sub-warehouse to Bin': return 3;
+        case 'Satellite Warehouse to Bin': return 3;
+        default: return 3;
       }
     }
 
-    let animationCooldown = false;  // Cooldown flag for animation
-
-    function animateRoute(from, to, warehouseType) {
-      if (animationCooldown) return;  // Prevent new animations if cooldown is active
-
-      animationCooldown = true;  // Start cooldown
-
-      const steps = 200;
-      const delay = 15;
-      let currentStep = 0;
-
-      const color = getDestColor(warehouseType);
-      const marker = L.circleMarker(from, {
-        radius: 4,
-        color: color,
-        fillColor: color,
-        fillOpacity: 1
-      }).addTo(map);
-
-      const latStep = (to[0] - from[0]) / steps;
-      const lngStep = (to[1] - from[1]) / steps;
-
-      const interval = setInterval(() => {
-        if (currentStep >= steps) {
-          clearInterval(interval);
-          map.removeLayer(marker);
-          setTimeout(() => {
-            animationCooldown = false;  // Reset cooldown after animation completes
-          }, 2000);  // 2-second cooldown before the cooldown is lifted
-          return;
-        }
-
-        const newLat = from[0] + latStep * currentStep;
-        const newLng = from[1] + lngStep * currentStep;
-        marker.setLatLng([newLat, newLng]);
-        currentStep++;
-      }, delay);
-    }
-
-    function addLegend(){
-      const legendControl = L.control({position:'bottomright'});
-      legendControl.onAdd = function(){
-        const div = L.DomUtil.create('div','legend');
+    function addLegend() {
+      const legendControl = L.control({ position: 'bottomright' });
+      legendControl.onAdd = function(map) {
+        const div = L.DomUtil.create('div', 'legend');
         div.innerHTML = `
+          <b>Warehouse Routes</b><br>
           <span style="background:black"></span> Cebu Main Routes<br>
           <span style="background:blue"></span> Sub-warehouse Routes<br>
           <span style="background:green"></span> Satellite Warehouse Routes<br>
@@ -316,7 +302,6 @@
     const searchInput = document.getElementById('searchInput');
     const searchResultsDiv = document.getElementById('searchResults');
     searchInput.addEventListener('input', handleSearch);
-
   </script>
 </body>
 </html>
