@@ -13,6 +13,8 @@
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+    #searchBar { position: absolute; top: 20px; right: 20px; z-index: 1000; width: 250px; padding: 6px; }
+    .leaflet-search { width: 100%; }
   </style>
 </head>
 <body>
@@ -23,6 +25,7 @@
     <button id="resetButton">Reset View</button>
   </div>
   <div id="map"></div>
+  <input id="searchBar" class="leaflet-search" type="text" placeholder="Search for a destination..." />
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
@@ -258,6 +261,60 @@
         return div;
       };
       legend.addTo(map);
+    }
+
+    // Autocomplete functionality for the search bar
+    const searchInput = document.getElementById('searchBar');
+
+    searchInput.addEventListener('input', function () {
+      const query = searchInput.value.toLowerCase();
+      const matches = [];
+
+      allData.forEach(d => {
+        const destination = d['Destination Name'].toLowerCase();
+        if (destination.includes(query)) {
+          matches.push(d);
+        }
+      });
+
+      const list = matches.map(d => d['Destination Name']).sort();
+      showAutocomplete(list);
+    });
+
+    function showAutocomplete(list) {
+      const dataList = document.createElement('ul');
+      dataList.style.position = 'absolute';
+      dataList.style.top = '40px';
+      dataList.style.right = '20px';
+      dataList.style.zIndex = '1001';
+      dataList.style.listStyleType = 'none';
+      dataList.style.padding = '5px';
+      dataList.style.border = '1px solid #ccc';
+      dataList.style.backgroundColor = '#fff';
+      dataList.style.maxHeight = '150px';
+      dataList.style.overflowY = 'auto';
+
+      list.forEach(item => {
+        const listItem = document.createElement('li');
+        listItem.textContent = item;
+        listItem.addEventListener('click', function () {
+          handleDestinationClick(item);
+        });
+        dataList.appendChild(listItem);
+      });
+
+      document.body.appendChild(dataList);
+    }
+
+    function handleDestinationClick(destination) {
+      const match = allData.find(d => d['Destination Name'] === destination);
+      if (match) {
+        const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
+        map.setView(coords, 12);  // Zoom in to the clicked destination
+        L.marker(coords).addTo(map)
+          .bindPopup(`<b>${destination}</b>`)
+          .openPopup();
+      }
     }
   </script>
 </body>
