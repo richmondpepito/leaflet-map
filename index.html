@@ -206,7 +206,13 @@
       }
     }
 
+    let animationCooldown = false;  // Cooldown flag for animation
+
     function animateRoute(from, to, warehouseType) {
+      if (animationCooldown) return;  // Prevent new animations if cooldown is active
+
+      animationCooldown = true;  // Start cooldown
+
       const steps = 200;
       const delay = 15;
       let currentStep = 0;
@@ -227,10 +233,11 @@
           clearInterval(interval);
           map.removeLayer(marker);
           setTimeout(() => {
-        animationCooldown = false;  // Reset cooldown after animation completes
-      }, 2000);  // 2-second cooldown before the cooldown is lifted
+            animationCooldown = false;  // Reset cooldown after animation completes
+          }, 2000);  // 2-second cooldown before the cooldown is lifted
           return;
         }
+
         const newLat = from[0] + latStep * currentStep;
         const newLng = from[1] + lngStep * currentStep;
         marker.setLatLng([newLat, newLng]);
