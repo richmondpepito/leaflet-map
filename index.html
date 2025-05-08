@@ -2,140 +2,194 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Warehouse Route Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Warehouse Routes Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <style>
-    #map { height: 100vh; width: 100vw; }
-    .legend { background: white; padding: 6px; font-size: 14px; }
-    .legend i { width: 12px; height: 12px; float: left; margin-right: 8px; opacity: 0.8; }
+    #map { height: 600px; width: 100%; }
+    #filters { margin: 20px; font-family: Arial, sans-serif; }
+    #resetButton { padding: 6px 12px; margin-left:10px; }
+    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
+    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
   </style>
 </head>
 <body>
+  <div id="filters">
+    <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
+    <label>Supervisor: <select id="supervisorFilter"></select></label>
+    <label>Region: <select id="regionFilter"></select></label>
+    <button id="resetButton">Reset View</button>
+  </div>
   <div id="map"></div>
+
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    const map = L.map('map').setView([10.3157, 123.8854], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: 'Map data © OpenStreetMap contributors'
-    }).addTo(map);
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
+    const cebuCoords = [10.3802, 123.9961];
 
-    const allData = [];
-    const routeCooldowns = new Map();
+    const cebuIcon = L.icon({
+      iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
+      iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
+    });
 
-    const getDestColor = (type) => {
-      if (type === "Bin") return "red";
-      if (type === "Satellite Warehouse") return "blue";
-      if (type === "Sub-warehouse") return "green";
-      return "gray";
+    const map = L.map('map').setView([10.3157,123.8854], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    const regionBounds = {
+      "all": [[4.5,116],[20.5,127]], 
+      "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]], "Region II": [[16.2,121.3],[18.5,122.5]], 
+      "Region III": [[14.5,119.5],[16.2,121.5]], "NCR": [[14.3,120.8],[14.8,121.2]], "Region IV-A": [[13.4,120.5],[15,122]],
+      "Region IV-B": [[11.8,118],[13.8,121.5]], "Region V": [[12.5,123.2],[14,124.5]], "Region VI": [[10.3,121],[11.8,123]],
+      "Region VII": [[9.2,122.2],[11.5,124]], "Region VIII": [[10.5,124.5],[12.5,126]], "Region IX": [[6,121],[8.5,123]],
+      "Region X": [[7.5,123.5],[9.5,125]], "Region XI": [[6.5,125],[8,126.5]], "Region XII": [[6,124],[7.8,126]],
+      "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
     };
 
-    const getSize = (type) => {
-      if (type === "Primary") return 8;
-      if (type === "Secondary") return 5;
-      return 4;
-    };
+    let allData = [], lines = [], markers = [];
+    const markerCluster = L.markerClusterGroup();
+    map.addLayer(markerCluster);
 
-    function draw(d) {
-      const o = [parseFloat(d['Origin Lat']), parseFloat(d['Origin Lng'])];
-      const u = [parseFloat(d['Dest Lat']), parseFloat(d['Dest Lng'])];
+    Papa.parse(sheetUrl, {
+      download: true,
+      header: true,
+      complete: res => {
+        allData = res.data.filter(r => r['Route ID']);
+        setup();
+      }
+    });
 
-      const color = getDestColor(d['Warehouse Type']);
-      const radius = getSize(d['Route Type']);
-      const routeKey = `${d['Route ID']}-${d['Route Type']}`;
+    function setup() {
+      populateFilters();
+      updateMap();
+      addLegend();
+      document.getElementById('resetButton').addEventListener('click', () => {
+        document.getElementById('warehouseTypeFilter').value = 'all';
+        document.getElementById('supervisorFilter').value = 'all';
+        document.getElementById('regionFilter').value = 'all';
+        updateMap();
+      });
+    }
 
-      const line = L.polyline([o, u], {
-        color: "#888", weight: 2, opacity: 0.5
-      }).addTo(map);
+    function populateFilters(){
+      const warehouseTypeSet = new Set(), supervisorSet = new Set(), regionSet = new Set();
+      allData.forEach(d => {
+        warehouseTypeSet.add(d['Warehouse Type']);
+        supervisorSet.add(d['Supervisor']);
+        regionSet.add(d['Regional Destination']);
+      });
+      fillSelect('warehouseTypeFilter', warehouseTypeSet);
+      fillSelect('supervisorFilter', supervisorSet);
+      fillSelect('regionFilter', regionSet);
+    }
 
-      const marker = L.circleMarker(u, {
-        radius: radius,
-        color: color,
-        fillColor: color,
-        fillOpacity: 1,
-      }).addTo(map);
+    function fillSelect(id, set){
+      const sel = document.getElementById(id);
+      sel.innerHTML = '<option value="all">All</option>';
+      Array.from(set).sort().forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
+      sel.addEventListener('change', updateMap);
+    }
 
-      marker.bindTooltip(
-        `<b>${d['Dest Name']}</b><br>${d['Warehouse Type']}<br>${d['Route Type']}`,
-        { permanent: false }
+    function updateMap(){
+      lines.forEach(l=>map.removeLayer(l)); lines=[];
+      markers.forEach(m=>map.removeLayer(m)); markers=[];
+      markerCluster.clearLayers();
+
+      const wf = document.getElementById('warehouseTypeFilter').value;
+      const sf = document.getElementById('supervisorFilter').value;
+      const rf = document.getElementById('regionFilter').value;
+
+      const filt = allData.filter(d =>
+        (wf==='all'||d['Warehouse Type']===wf)&&
+        (sf==='all'||d['Supervisor']===sf)&&
+        (rf==='all'||d['Regional Destination']===rf)
       );
 
-      function animateRoute(from, to, warehouseType, routeType, routeKey) {
-        const cooldownTime = 3000;
-        const now = Date.now();
-
-        if (routeCooldowns.has(routeKey) && now - routeCooldowns.get(routeKey) < cooldownTime) return;
-        routeCooldowns.set(routeKey, now);
-
-        const steps = 100;
-        const delay = 15;
-        const color = getDestColor(warehouseType);
-        const radius = getSize(routeType);
-        let currentStep = 0;
-
-        const latStep = (to[0] - from[0]) / steps;
-        const lngStep = (to[1] - from[1]) / steps;
-
-        const interval = setInterval(() => {
-          if (currentStep >= steps) {
-            clearInterval(interval);
-            return;
-          }
-
-          const newLat = from[0] + latStep * currentStep;
-          const newLng = from[1] + lngStep * currentStep;
-
-          const fadingMarker = L.circleMarker([newLat, newLng], {
-            radius: radius,
-            color: color,
-            fillColor: color,
-            fillOpacity: 1,
-            opacity: 1
-          }).addTo(map);
-
-          // Fade and remove
-          setTimeout(() => {
-            let fadeStep = 1.0;
-            const fadeInterval = setInterval(() => {
-              fadeStep -= 0.1;
-              if (fadeStep <= 0) {
-                clearInterval(fadeInterval);
-                map.removeLayer(fadingMarker);
-              } else {
-                fadingMarker.setStyle({ fillOpacity: fadeStep, opacity: fadeStep });
-              }
-            }, 50);
-          }, 500);
-
-          currentStep++;
-        }, delay);
-      }
-
-      line.on('mouseover', () => animateRoute(o, u, d['Warehouse Type'], d['Route Type'], routeKey));
-      line.on('click', () => animateRoute(o, u, d['Warehouse Type'], d['Route Type'], routeKey));
-    }
-
-    function loadData() {
-      const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?output=csv';
-      fetch(url)
-        .then(res => res.text())
-        .then(csv => {
-          const [headerLine, ...lines] = csv.trim().split('\n');
-          const headers = headerLine.split(',');
-
-          for (const line of lines) {
-            const cells = line.split(',');
-            const row = {};
-            headers.forEach((h, i) => row[h.trim()] = cells[i]?.trim());
-            allData.push(row);
-          }
-
-          allData.forEach(draw);
+      const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
+        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
+          permanent: false,
+          direction:'top'
         });
+      map.addLayer(gtMarker);
+      markers.push(gtMarker);
+
+      filt.forEach(draw);
+
+      if (rf !== 'all' && regionBounds[rf]) {
+        map.fitBounds(regionBounds[rf]);
+      } else if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.2));
+      } else {
+        map.setView([10.3157,123.8854], 6);
+      }
     }
 
-    loadData();
+    function draw(d){
+      if (!d['Origin Lat'] || !d['Origin Long'] || !d['Destination Lat'] || !d['Destination Long']) return;
+
+      const oLat = +d['Origin Lat'], oLng = +d['Origin Long'];
+      const dLat = +d['Destination Lat'], dLng = +d['Destination Long'];
+
+      const o=[oLat, oLng], u=[dLat, dLng];
+      const txt = `
+<b>Route Type:</b> ${d['Route Type']}<br>
+<b>From:</b> ${d['Origin Name']}<br>
+<b>To:</b> ${d['Destination Name']}<br>
+<b>Location:</b> ${d['Destination Location']}<br>
+<b>Supervisor:</b> ${d['Supervisor']}`;
+
+      const line = L.polyline([o,u], {
+        color:getColor(d['Route Type']),
+        weight:1.5,
+        dashArray:getDash(d['Route Type'])
+      }).addTo(map).bindTooltip(txt);
+
+      line.on('mouseover', () => animateRoute(line));
+      lines.push(line);
+
+      const marker = L.marker(u, {icon: L.icon({iconUrl: 'red-dot.png', iconSize:[10,10]})})
+        .bindTooltip('<b>' + d['Destination Name'] + '</b><br>' + d['Route Type']);
+      markerCluster.addLayer(marker);
+      markers.push(marker);
+    }
+
+    function getColor(routeType){
+      const colors = { 'Cebu': 'red', 'Sub-warehouse': 'blue', 'Satellite': 'green' };
+      return colors[routeType] || 'gray';
+    }
+
+    function getDash(routeType){
+      return routeType === 'Cebu' ? '5,5' : '1,5';
+    }
+
+    function animateRoute(line) {
+      let i = 0;
+      const coords = line.getLatLngs();
+      const interval = setInterval(() => {
+        if (i < coords.length - 1) {
+          line.setLatLngs([coords[0], coords[i++]]);
+        } else {
+          clearInterval(interval);
+        }
+      }, 300);
+    }
+
+    function addLegend(){
+      const legend = L.control({position: 'bottomright'});
+      legend.onAdd = function(map){
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML += '<span><b>Route Type Colors:</b></span><br>';
+        div.innerHTML += '<span><div style="width:12px;height:12px;background:red;"></div>Cebu</span><br>';
+        div.innerHTML += '<span><div style="width:12px;height:12px;background:blue;"></div>Sub-warehouse</span><br>';
+        div.innerHTML += '<span><div style="width:12px;height:12px;background:green;"></div>Satellite</span><br>';
+        return div;
+      };
+      legend.addTo(map);
+    }
   </script>
 </body>
 </html>
