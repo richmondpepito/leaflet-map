@@ -36,17 +36,14 @@
       border: 1px solid #ccc;
       border-radius: 4px;
       z-index: 1001;
-      font-family: Arial, sans-serif;
-      font-size: 13px;
-      list-style-type: none; /* Removed bullets */
-      padding-left: 0;
+      list-style: none;
+      padding: 0;
       margin: 0;
     }
     #autocomplete-list li {
-      padding: 6px 8px;
+      padding: 8px;
       cursor: pointer;
-      font-family: Arial, sans-serif;
-      font-size: 13px;
+      font-size: 14px; /* Matching font size with marker label */
     }
     #autocomplete-list li:hover {
       background-color: #f1f1f1;
@@ -89,7 +86,7 @@
       "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
     };
 
-    let allData = [], lines = [], markers = [], searchMarker = null;
+    let allData = [], lines = [], markers = [], searchMarker;
     const markerCluster = L.markerClusterGroup();
     map.addLayer(markerCluster);
 
@@ -110,10 +107,6 @@
         document.getElementById('warehouseTypeFilter').value = 'all';
         document.getElementById('supervisorFilter').value = 'all';
         document.getElementById('regionFilter').value = 'all';
-        if (searchMarker) {
-          map.removeLayer(searchMarker); // Remove search marker on reset
-          searchMarker = null;
-        }
         updateMap();
       });
     }
@@ -138,8 +131,8 @@
     }
 
     function updateMap(){
-      lines.forEach(l => map.removeLayer(l)); lines = [];
-      markers.forEach(m => map.removeLayer(m)); markers = [];
+      lines.forEach(l=>map.removeLayer(l)); lines=[];
+      markers.forEach(m=>map.removeLayer(m)); markers=[];
       markerCluster.clearLayers();
 
       const wf = document.getElementById('warehouseTypeFilter').value;
@@ -147,15 +140,15 @@
       const rf = document.getElementById('regionFilter').value;
 
       const filt = allData.filter(d =>
-        (wf === 'all' || d['Warehouse Type'] === wf) &&
-        (sf === 'all' || d['Supervisor'] === sf) &&
-        (rf === 'all' || d['Regional Destination'] === rf)
+        (wf==='all'||d['Warehouse Type']===wf)&&
+        (sf==='all'||d['Supervisor']===sf)&&
+        (rf==='all'||d['Regional Destination']===rf)
       );
 
-      const gtMarker = L.marker(cebuCoords, { icon: cebuIcon })
+      const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
         .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
           permanent: false,
-          direction: 'top'
+          direction:'top'
         });
       map.addLayer(gtMarker);
       markers.push(gtMarker);
@@ -172,67 +165,143 @@
       }
     }
 
-    function draw(d) {
+    function draw(d){
       if (!d['Origin Lat'] || !d['Origin Long'] || !d['Destination Lat'] || !d['Destination Long']) return;
 
       const oLat = +d['Origin Lat'], oLng = +d['Origin Long'];
       const dLat = +d['Destination Lat'], dLng = +d['Destination Long'];
-      const line = L.polyline([[oLat, oLng], [dLat, dLng]], { color: 'blue', weight: 2 }).addTo(map);
+
+      const o=[oLat, oLng], u=[dLat, dLng];
+      const txt = `
+<b>Route Type:</b> ${d['Route Type']}<br>
+<b>From:</b> ${d['Origin Name']}<br>
+<b>To:</b> ${d['Destination Name']}<br>
+<b>Location:</b> ${d['Destination Location']}<br>
+<b>Supervisor:</b> ${d['Supervisor']}`;
+
+      const line = L.polyline([o,u], {
+        color:getColor(d['Route Type']),
+        weight:1.5,
+        dashArray:getDash(d['Route Type'])
+      }).addTo(map).bindTooltip(txt);
+
+      line.on('mouseover', () => animateRoute(o, u, d['Warehouse Type']));
+      line.on('click', () => animateRoute(o, u, d['Warehouse Type']));
+
       lines.push(line);
-      markerCluster.addLayer(line);
 
-      const marker = L.marker([dLat, dLng])
-        .bindPopup(`<b>${d['Destination Name']}</b><br>Region: ${d['Regional Destination']}`)
-        .addTo(markerCluster);
-      markers.push(marker);
-    }
+      const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
 
-    // Search functionality for destination autocomplete
-    let searchTimeout;
-    document.getElementById('searchBar').addEventListener('input', function() {
-      const query = this.value.toLowerCase();
-      if (searchTimeout) clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(() => searchDestination(query), 300);
-    });
-
-    function searchDestination(query) {
-      const matches = allData.filter(d =>
-        d['Destination Name'].toLowerCase().includes(query)
-      );
-      showAutocomplete(matches);
-    }
-
-    function showAutocomplete(matches) {
-      const list = document.getElementById('autocomplete-list');
-      list.innerHTML = '';
-      matches.forEach(match => {
-        const item = document.createElement('li');
-        item.textContent = match['Destination Name'];
-        item.addEventListener('click', () => handleSelectDestination(match));
-        list.appendChild(item);
-      });
-    }
-
-    function handleSelectDestination(match) {
-      if (searchMarker) {
-        map.removeLayer(searchMarker); // Remove previous search marker
+      if (!isCebuMain) {
+        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
+          .bindTooltip(txt);
+        map.addLayer(om);
+        markers.push(om);
       }
-      const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
-      map.setView(coords, 12);
-      searchMarker = L.marker(coords).addTo(map)
-        .bindPopup(`<b>${match['Destination Name']}</b>`)
-        .openPopup();
+
+      const destColor = getDestColor(d['Warehouse Type']);
+      const dm = L.circleMarker(u, {
+        radius: getSize(d['Route Type']),
+        color: destColor,
+        fillColor: destColor,
+        fillOpacity: 1
+      }).bindTooltip(txt);
+      markerCluster.addLayer(dm);
+      markers.push(dm);
     }
 
-    function addLegend() {
-      const legend = L.control({ position: 'topright' });
-      legend.onAdd = function() {
+    function getColor(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 'black';
+        case 'Cebu Main to Bin': return 'black';
+        case 'Sub-warehouse to Satellite Warehouse': return 'blue';
+        case 'Sub-warehouse to Bin': return 'blue';
+        case 'Satellite Warehouse to Bin': return 'green';
+        default: return 'gray';
+      }
+    }
+
+    function getDestColor(type){
+      switch (type.trim()) {
+        case 'Sub-warehouse': return 'blue';
+        case 'Satellite Warehouse': return 'green';
+        case 'Bin': return 'red';
+        default: return 'gray';
+      }
+    }
+
+    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
+
+    function getSize(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 6;
+        case 'Cebu Main to Bin': return 2;
+        case 'Sub-warehouse to Satellite Warehouse': return 4;
+        case 'Sub-warehouse to Bin': return 2;
+        case 'Satellite Warehouse to Bin': return 1;
+        default: return 3;
+      }
+    }
+
+    function addLegend(){
+      const legend = L.control({position:'bottomright'});
+      legend.onAdd = () => {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = '<b>Legend:</b><br><span style="background-color: blue;"></span> Route Line';
+        div.innerHTML = `
+<b>Route Type</b><br>
+<span style="background:gray;"></span> Main Plant to Sub-warehouse<br>
+<span style="background:blue;"></span> Sub-warehouse to Satellite Warehouse<br>
+<span style="background:green;"></span> Satellite Warehouse to Bin`;
         return div;
       };
       legend.addTo(map);
     }
+
+    // Autocomplete search functionality
+    let matches = [], searchMarker;
+
+    document.getElementById('searchBar').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      matches = allData.filter(item => item['Destination Name'].toLowerCase().includes(query));
+      updateAutocompleteList(query);
+    });
+
+    function updateAutocompleteList(query) {
+      const list = document.getElementById('autocomplete-list');
+      list.innerHTML = '';
+      matches.forEach(match => {
+        const li = document.createElement('li');
+        li.textContent = match['Destination Name'];
+        li.addEventListener('click', () => handleSelectDestination(match));
+        list.appendChild(li);
+      });
+    }
+
+    function handleSelectDestination(match) {
+      // Remove previous search marker
+      if (searchMarker) {
+        map.removeLayer(searchMarker);
+      }
+
+      const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
+      searchMarker = L.marker(coords, {icon: L.icon({iconUrl: 'https://example.com/marker.png', iconSize: [32, 32]})})
+        .addTo(map)
+        .bindPopup(`<b>${match['Destination Name']}</b><br>${match['Destination Location']}`);
+
+      map.setView(coords, 10);
+      document.getElementById('searchBar').value = '';
+      document.getElementById('autocomplete-list').innerHTML = ''; // Clear the list
+    }
+
+    // Add autocomplete styling
+    const styleAutocomplete = () => {
+      const list = document.getElementById('autocomplete-list');
+      if (list) {
+        list.style.fontSize = '14px'; // Matching font size with marker labels
+      }
+    };
+
+    styleAutocomplete();
   </script>
 </body>
 </html>
