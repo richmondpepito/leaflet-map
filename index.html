@@ -9,26 +9,53 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <style>
     #map { height: 600px; width: 100%; }
-    #filters { margin: 20px; font-family: Arial, sans-serif; }
-    #resetButton { padding: 6px 12px; margin-left:10px; }
-    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
-    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
-    
+    #filters {
+      display: flex;
+      justify-content: space-between;
+      margin: 20px;
+      font-family: Arial, sans-serif;
+      align-items: center;
+      width: 100%;
+    }
+    #filters div {
+      flex: 1;
+    }
+    #resetButton {
+      padding: 6px 12px;
+      margin-left: 10px;
+    }
+    .legend {
+      background: white;
+      padding: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    .legend span {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
     /* Search bar styles */
     #search-container {
       position: relative;
-      margin: 20px;
-      width: 300px;
+      width: 100%;
+      max-width: 300px;
     }
     #searchInput {
       width: 100%;
-      padding: 10px;
+      padding: 12px;
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 16px;
       box-sizing: border-box;
+      background-color: #f9f9f9;
     }
-    .autocomplete-suggestions {
+    #searchResults {
       position: absolute;
       top: 40px;
       left: 0;
@@ -37,19 +64,19 @@
       border: 1px solid #ccc;
       max-height: 200px;
       overflow-y: auto;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       z-index: 9999;
-      box-sizing: border-box;
       border-radius: 4px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: none;
     }
     .autocomplete-suggestion {
-      padding: 8px;
+      padding: 10px;
       cursor: pointer;
       font-size: 14px;
       transition: background-color 0.2s ease;
     }
     .autocomplete-suggestion:hover {
-      background-color: #f0f0f0;
+      background-color: #e9e9e9;
     }
     .highlight {
       font-weight: bold;
@@ -59,15 +86,16 @@
 </head>
 <body>
   <div id="filters">
-    <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
-    <label>Supervisor: <select id="supervisorFilter"></select></label>
-    <label>Region: <select id="regionFilter"></select></label>
-    <button id="resetButton">Reset View</button>
-  </div>
-  
-  <div id="search-container">
-    <input id="searchInput" type="text" placeholder="Search warehouse..." />
-    <div id="searchResults" class="autocomplete-suggestions"></div>
+    <div>
+      <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
+      <label>Supervisor: <select id="supervisorFilter"></select></label>
+      <label>Region: <select id="regionFilter"></select></label>
+      <button id="resetButton">Reset View</button>
+    </div>
+    <div id="search-container">
+      <input id="searchInput" type="text" placeholder="Search warehouse..." autocomplete="off"/>
+      <div id="searchResults"></div>
+    </div>
   </div>
 
   <div id="map"></div>
@@ -232,25 +260,36 @@
       }
     }
 
-    function getDestColor(type){
-      switch (type.trim()) {
-        case 'Sub-warehouse': return 'blue';
-        case 'Satellite Warehouse': return 'green';
-        case 'Bin': return 'red';
+    function getDash(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 4;
+        case 'Cebu Main to Bin': return 4;
+        case 'Sub-warehouse to Satellite Warehouse': return 3;
+        case 'Sub-warehouse to Bin': return 3;
+        case 'Satellite Warehouse to Bin': return 2;
+        default: return 3;
+      }
+    }
+
+    function getDestColor(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 'black';
+        case 'Cebu Main to Bin': return 'black';
+        case 'Sub-warehouse to Satellite Warehouse': return 'blue';
+        case 'Sub-warehouse to Bin': return 'blue';
+        case 'Satellite Warehouse to Bin': return 'green';
         default: return 'gray';
       }
     }
 
-    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
-
     function getSize(t){
       switch (t.trim()) {
         case 'Cebu Main to Sub-warehouse': return 6;
-        case 'Cebu Main to Bin': return 3;
+        case 'Cebu Main to Bin': return 6;
         case 'Sub-warehouse to Satellite Warehouse': return 4;
-        case 'Sub-warehouse to Bin': return 3;
-        case 'Satellite Warehouse to Bin': return 3;
-        default: return 3;
+        case 'Sub-warehouse to Bin': return 4;
+        case 'Satellite Warehouse to Bin': return 4;
+        default: return 4;
       }
     }
 
@@ -270,24 +309,25 @@
       legendControl.addTo(map);
     }
 
+    // Autocomplete for search input
+    const searchInput = document.getElementById('searchInput');
+    const searchResultsDiv = document.getElementById('searchResults');
+
     function handleSearch() {
       const term = searchInput.value.trim().toLowerCase();
       searchResultsDiv.innerHTML = '';
       if (!term) return;
 
       const regex = new RegExp(`(${term})`, 'gi');
-      const matches = markers
-        .filter(m => m._searchLabel && m._searchLabel.includes(term))
-        .slice(0, 10);
+      const matches = markers.filter(m => m._searchLabel && m._searchLabel.toLowerCase().includes(term));
 
       matches.forEach(m => {
         const div = document.createElement('div');
         div.className = 'autocomplete-suggestion';
-
-        // Highlight matching portion
-        const label = m._searchLabel.replace(regex, "<strong>$1</strong>");
+        
+        const label = m._searchLabel.replace(regex, "<strong class='highlight'>$1</strong>");
         div.innerHTML = label;
-
+        
         div.addEventListener('click', () => {
           map.setView(m.getLatLng(), 11);
           m.openTooltip();
@@ -297,10 +337,10 @@
 
         searchResultsDiv.appendChild(div);
       });
+
+      searchResultsDiv.style.display = matches.length ? 'block' : 'none';
     }
 
-    const searchInput = document.getElementById('searchInput');
-    const searchResultsDiv = document.getElementById('searchResults');
     searchInput.addEventListener('input', handleSearch);
   </script>
 </body>
