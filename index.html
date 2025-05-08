@@ -8,7 +8,10 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <style>
-    #map { height: 600px; width: 100%; }
+    #map { 
+      height: 600px; /* Ensure the map has a height */
+      width: 100%;  /* Ensure the map takes up full width */
+    }
     #filters { margin: 20px; font-family: Arial, sans-serif; }
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
@@ -72,6 +75,11 @@
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
       iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
     });
+
+    // Check if Leaflet is loaded properly
+    if (typeof L === 'undefined') {
+      alert('Leaflet library did not load correctly!');
+    }
 
     const map = L.map('map').setView([10.3157,123.8854], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -242,66 +250,6 @@
         default: return 3;
       }
     }
-
-    function addLegend(){
-      const legend = L.control({position:'bottomright'});
-      legend.onAdd = () => {
-        const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `
-<b>Route Type</b><br>
-<span style="background:gray;"></span> Main Plant to Sub-warehouse<br>
-<span style="background:blue;"></span> Sub-warehouse to Satellite Warehouse<br>
-<span style="background:green;"></span> Satellite Warehouse to Bin`;
-        return div;
-      };
-      legend.addTo(map);
-    }
-
-    // Autocomplete search functionality
-    let matches = [], searchMarker;
-
-    document.getElementById('searchBar').addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase();
-      matches = allData.filter(item => item['Destination Name'].toLowerCase().includes(query));
-      updateAutocompleteList(query);
-    });
-
-    function updateAutocompleteList(query) {
-      const list = document.getElementById('autocomplete-list');
-      list.innerHTML = '';
-      matches.forEach(match => {
-        const li = document.createElement('li');
-        li.textContent = match['Destination Name'];
-        li.addEventListener('click', () => handleSelectDestination(match));
-        list.appendChild(li);
-      });
-    }
-
-    function handleSelectDestination(match) {
-      // Remove previous search marker
-      if (searchMarker) {
-        map.removeLayer(searchMarker);
-      }
-
-      const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
-      searchMarker = L.marker(coords, {icon: L.icon({iconUrl: 'https://example.com/marker.png', iconSize: [32, 32]})})
-        .addTo(map)
-        .bindPopup(`<b>${match['Destination Name']}</b><br>${match['Destination Location']}`);
-
-      map.setView(coords, 10);
-      document.getElementById('searchBar').value = '';
-      document.getElementById('autocomplete-list').innerHTML = ''; // Clear the list
-    }
-
-    // Add autocomplete styling
-    const styleAutocomplete = () => {
-      const list = document.getElementById('autocomplete-list');
-      if (list) {
-        list.style.fontSize = '14px'; // Matching font size with marker labels
-      }
-    };
-
-    styleAutocomplete();
   </script>
 </body>
 </html>
