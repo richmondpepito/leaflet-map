@@ -13,6 +13,25 @@
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+    .autocomplete-suggestions {
+      position: absolute;
+      top: 40px;
+      left: 0;
+      width: 100%;
+      background: white;
+      border: 1px solid #ccc;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 9999;
+      box-sizing: border-box;
+    }
+    .autocomplete-suggestion {
+      padding: 8px;
+      cursor: pointer;
+    }
+    .autocomplete-suggestion:hover {
+      background-color: #ddd;
+    }
   </style>
 </head>
 <body>
@@ -21,6 +40,10 @@
     <label>Supervisor: <select id="supervisorFilter"></select></label>
     <label>Region: <select id="regionFilter"></select></label>
     <button id="resetButton">Reset View</button>
+  </div>
+  <div id="search-container">
+    <input id="searchInput" type="text" placeholder="Search warehouse..." />
+    <div id="searchResults" class="autocomplete-suggestions"></div>
   </div>
   <div id="map"></div>
 
@@ -142,6 +165,7 @@
 <b>Location:</b> ${d['Destination Location']}<br>
 <b>Supervisor:</b> ${d['Supervisor']}`;
 
+
       const line = L.polyline([o,u], {
         color:getColor(d['Route Type']),
         weight:1.5,
@@ -252,14 +276,47 @@
         div.innerHTML = `
           <span style="background:black"></span> Cebu Main Routes<br>
           <span style="background:blue"></span> Sub-warehouse Routes<br>
-          <span style="background:green"></span> Satellite to Bin Routes<br>
-          <span style="background:red"></span> Bin Destination Markers<br>
-          <span style="background:gray"></span> Unspecified Routes
+          <span style="background:green"></span> Satellite Warehouse Routes<br>
+          <span style="background:red"></span> Bin Routes
         `;
         return div;
       };
       legendControl.addTo(map);
     }
+
+    function handleSearch() {
+      const term = searchInput.value.trim().toLowerCase();
+      searchResultsDiv.innerHTML = '';
+      if (!term) return;
+
+      const regex = new RegExp(`(${term})`, 'gi');
+      const matches = markers
+        .filter(m => m._searchLabel && m._searchLabel.includes(term))
+        .slice(0, 10);
+
+      matches.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-suggestion';
+
+        // Highlight matching portion
+        const label = m._searchLabel.replace(regex, "<strong>$1</strong>");
+        div.innerHTML = label;
+
+        div.addEventListener('click', () => {
+          map.setView(m.getLatLng(), 11);
+          m.openTooltip();
+          searchInput.value = '';
+          searchResultsDiv.innerHTML = '';
+        });
+
+        searchResultsDiv.appendChild(div);
+      });
+    }
+
+    const searchInput = document.getElementById('searchInput');
+    const searchResultsDiv = document.getElementById('searchResults');
+    searchInput.addEventListener('input', handleSearch);
+
   </script>
 </body>
 </html>
