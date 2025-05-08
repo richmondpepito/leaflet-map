@@ -30,7 +30,7 @@
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
-
+    
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
       iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
@@ -148,44 +148,100 @@
         dashArray:getDash(d['Route Type'])
       }).addTo(map).bindTooltip(txt);
 
-      line.on('mouseover', () => animateRoute(line));
+      line.on('mouseover', () => animateRoute(o, u, d['Warehouse Type']));
+      line.on('click', () => animateRoute(o, u, d['Warehouse Type']));
+
       lines.push(line);
 
-      const marker = L.marker(u, {icon: L.icon({iconUrl: 'red-dot.png', iconSize:[10,10]})})
-        .bindTooltip('<b>' + d['Destination Name'] + '</b><br>' + d['Route Type']);
-      markerCluster.addLayer(marker);
-      markers.push(marker);
+      const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
+
+      if (!isCebuMain) {
+        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
+          .bindTooltip(txt);
+        map.addLayer(om);
+        markers.push(om);
+      }
+
+      const destColor = getDestColor(d['Warehouse Type']);
+      const dm = L.circleMarker(u, {
+        radius: getSize(d['Route Type']),
+        color: destColor,
+        fillColor: destColor,
+        fillOpacity: 1
+      }).bindTooltip(txt);
+      markerCluster.addLayer(dm);
+      markers.push(dm);
     }
 
-    function getColor(routeType){
-      const colors = { 'Cebu': 'red', 'Sub-warehouse': 'blue', 'Satellite': 'green' };
-      return colors[routeType] || 'gray';
+    function getColor(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 'black';
+        case 'Cebu Main to Bin': return 'black';
+        case 'Sub-warehouse to Satellite Warehouse': return 'blue';
+        case 'Sub-warehouse to Bin': return 'blue';
+        case 'Satellite Warehouse to Bin': return 'green';
+        default: return 'gray';
+      }
     }
 
-    function getDash(routeType){
-      return routeType === 'Cebu' ? '5,5' : '1,5';
+    function getDestColor(type){
+      switch (type.trim()) {
+        case 'Sub-warehouse': return 'blue';
+        case 'Satellite Warehouse': return 'green';
+        case 'Bin': return 'red';
+        default: return 'gray';
+      }
     }
 
-    function animateRoute(line) {
-      let i = 0;
-      const coords = line.getLatLngs();
+    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
+
+    function getSize(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 6;
+        case 'Cebu Main to Bin': return 2;
+        case 'Sub-warehouse to Satellite Warehouse': return 4;
+        case 'Sub-warehouse to Bin': return 2;
+        case 'Satellite Warehouse to Bin': return 2;
+        default: return 4;
+      }
+    }
+
+    function animateRoute(from, to, warehouseType) {
+      const steps = 200;
+      const delay = 15;
+      let currentStep = 0;
+
+      const color = getDestColor(warehouseType);
+      const marker = L.circleMarker(from, {
+        radius: 4,
+        color: color,
+        fillColor: color,
+        fillOpacity: 1
+      }).addTo(map);
+
+      const latStep = (to[0] - from[0]) / steps;
+      const lngStep = (to[1] - from[1]) / steps;
+
       const interval = setInterval(() => {
-        if (i < coords.length - 1) {
-          line.setLatLngs([coords[0], coords[i++]]);
-        } else {
+        if (currentStep >= steps) {
           clearInterval(interval);
+          map.removeLayer(marker);
+        } else {
+          marker.setLatLng([from[0] + latStep * currentStep, from[1] + lngStep * currentStep]);
         }
-      }, 300);
+        currentStep++;
+      }, delay);
     }
 
-    function addLegend(){
-      const legend = L.control({position: 'bottomright'});
-      legend.onAdd = function(map){
+    function addLegend() {
+      const legend = L.control({position: 'topright'});
+      legend.onAdd = () => {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML += '<span><b>Route Type Colors:</b></span><br>';
-        div.innerHTML += '<span><div style="width:12px;height:12px;background:red;"></div>Cebu</span><br>';
-        div.innerHTML += '<span><div style="width:12px;height:12px;background:blue;"></div>Sub-warehouse</span><br>';
-        div.innerHTML += '<span><div style="width:12px;height:12px;background:green;"></div>Satellite</span><br>';
+        div.innerHTML = `
+<b>Route Type</b><br>
+<span style="background:black;"></span> Cebu Main to Sub-warehouse<br>
+<span style="background:blue;"></span> Sub-warehouse to Satellite Warehouse<br>
+<span style="background:green;"></span> Satellite Warehouse to Bin<br>`;
         return div;
       };
       legend.addTo(map);
