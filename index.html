@@ -13,8 +13,37 @@
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
-    #searchBar { position: absolute; top: 20px; right: 20px; z-index: 1000; width: 250px; padding: 6px; }
-    .leaflet-search { width: 100%; }
+    #searchBar { 
+      position: absolute; 
+      top: 20px; 
+      right: 20px; 
+      z-index: 1000; 
+      width: 250px; 
+      padding: 6px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: #fff;
+    }
+    #autocomplete-list {
+      position: absolute;
+      top: 50px;
+      right: 20px;
+      width: 250px;
+      max-height: 150px;
+      overflow-y: auto;
+      background-color: white;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      z-index: 1001;
+    }
+    #autocomplete-list li {
+      padding: 8px;
+      cursor: pointer;
+    }
+    #autocomplete-list li:hover {
+      background-color: #f1f1f1;
+    }
   </style>
 </head>
 <body>
@@ -25,7 +54,8 @@
     <button id="resetButton">Reset View</button>
   </div>
   <div id="map"></div>
-  <input id="searchBar" class="leaflet-search" type="text" placeholder="Search for a destination..." />
+  <input id="searchBar" type="text" placeholder="Search for a destination..." />
+  <ul id="autocomplete-list"></ul>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
@@ -204,117 +234,51 @@
         case 'Cebu Main to Bin': return 2;
         case 'Sub-warehouse to Satellite Warehouse': return 4;
         case 'Sub-warehouse to Bin': return 2;
-        case 'Satellite Warehouse to Bin': return 2;
-        default: return 4;
+        case 'Satellite Warehouse to Bin': return 1;
+        default: return 3;
       }
     }
 
-    let animationCooldown = false;  // Cooldown flag for animation
-
-    function animateRoute(from, to, warehouseType) {
-      if (animationCooldown) return;  // Prevent new animations if cooldown is active
-
-      animationCooldown = true;  // Start cooldown
-
-      const steps = 200;
-      const delay = 15;
-      let currentStep = 0;
-
-      const color = getDestColor(warehouseType);
-      const marker = L.circleMarker(from, {
-        radius: 4,
-        color: color,
-        fillColor: color,
-        fillOpacity: 1
-      }).addTo(map);
-
-      const latStep = (to[0] - from[0]) / steps;
-      const lngStep = (to[1] - from[1]) / steps;
-
-      const interval = setInterval(() => {
-        if (currentStep >= steps) {
-          clearInterval(interval);
-          map.removeLayer(marker);
-          setTimeout(() => {
-            animationCooldown = false;  // Reset cooldown after animation completes
-          }, 2000);  // 2-second cooldown before the cooldown is lifted
-          return;
-        }
-
-        const newLat = from[0] + latStep * currentStep;
-        const newLng = from[1] + lngStep * currentStep;
-        marker.setLatLng([newLat, newLng]);
-        currentStep++;
-      }, delay);
-    }
-
-    function addLegend() {
-      const legend = L.control({ position: 'topright' });
-
-      legend.onAdd = function () {
+    function addLegend(){
+      const legend = L.control({position:'bottomright'});
+      legend.onAdd = () => {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML += '<strong>Route Types</strong><br>';
-        div.innerHTML += '<span style="background:black"></span> Cebu Main to Sub-warehouse<br>';
-        div.innerHTML += '<span style="background:blue"></span> Sub-warehouse to Satellite Warehouse<br>';
-        div.innerHTML += '<span style="background:green"></span> Satellite Warehouse to Bin<br>';
-        div.innerHTML += '<span style="background:red"></span> Bin<br>';
+        div.innerHTML = `
+<b>Route Type</b><br>
+<span style="background:gray;"></span> Main Plant to Sub-warehouse<br>
+<span style="background:blue;"></span> Sub-warehouse to Satellite Warehouse<br>
+<span style="background:green;"></span> Satellite Warehouse to Bin`;
         return div;
       };
       legend.addTo(map);
     }
 
-    // Autocomplete functionality for the search bar
-    const searchInput = document.getElementById('searchBar');
+    // Autocomplete search functionality
+    let matches = [];
 
-    searchInput.addEventListener('input', function () {
-      const query = searchInput.value.toLowerCase();
-      const matches = [];
-
-      allData.forEach(d => {
-        const destination = d['Destination Name'].toLowerCase();
-        if (destination.includes(query)) {
-          matches.push(d);
-        }
-      });
-
-      const list = matches.map(d => d['Destination Name']).sort();
-      showAutocomplete(list);
+    document.getElementById('searchBar').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      matches = allData.filter(item => item['Destination Name'].toLowerCase().includes(query));
+      updateAutocompleteList(query);
     });
 
-    function showAutocomplete(list) {
-      const dataList = document.createElement('ul');
-      dataList.style.position = 'absolute';
-      dataList.style.top = '40px';
-      dataList.style.right = '20px';
-      dataList.style.zIndex = '1001';
-      dataList.style.listStyleType = 'none';
-      dataList.style.padding = '5px';
-      dataList.style.border = '1px solid #ccc';
-      dataList.style.backgroundColor = '#fff';
-      dataList.style.maxHeight = '150px';
-      dataList.style.overflowY = 'auto';
-
-      list.forEach(item => {
-        const listItem = document.createElement('li');
-        listItem.textContent = item;
-        listItem.addEventListener('click', function () {
-          handleDestinationClick(item);
-        });
-        dataList.appendChild(listItem);
+    function updateAutocompleteList(query) {
+      const list = document.getElementById('autocomplete-list');
+      list.innerHTML = '';
+      matches.forEach(match => {
+        const li = document.createElement('li');
+        li.textContent = match['Destination Name'];
+        li.addEventListener('click', () => handleSelectDestination(match));
+        list.appendChild(li);
       });
-
-      document.body.appendChild(dataList);
     }
 
-    function handleDestinationClick(destination) {
-      const match = allData.find(d => d['Destination Name'] === destination);
-      if (match) {
-        const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
-        map.setView(coords, 12);  // Zoom in to the clicked destination
-        L.marker(coords).addTo(map)
-          .bindPopup(`<b>${destination}</b>`)
-          .openPopup();
-      }
+    function handleSelectDestination(match) {
+      const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
+      map.setView(coords, 12);  // Zoom in to the clicked destination
+      L.marker(coords).addTo(map)
+        .bindPopup(`<b>${match['Destination Name']}</b>`)
+        .openPopup();
     }
   </script>
 </body>
