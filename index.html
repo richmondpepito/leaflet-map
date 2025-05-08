@@ -30,7 +30,7 @@
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
-    
+
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
       iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
@@ -226,25 +226,29 @@
         if (currentStep >= steps) {
           clearInterval(interval);
           map.removeLayer(marker);
-        } else {
-          marker.setLatLng([from[0] + latStep * currentStep, from[1] + lngStep * currentStep]);
+          return;
         }
+        const newLat = from[0] + latStep * currentStep;
+        const newLng = from[1] + lngStep * currentStep;
+        marker.setLatLng([newLat, newLng]);
         currentStep++;
       }, delay);
     }
 
-    function addLegend() {
-      const legend = L.control({position: 'topright'});
-      legend.onAdd = () => {
-        const div = L.DomUtil.create('div', 'legend');
+    function addLegend(){
+      const legendControl = L.control({position:'bottomright'});
+      legendControl.onAdd = function(){
+        const div = L.DomUtil.create('div','legend');
         div.innerHTML = `
-<b>Route Type</b><br>
-<span style="background:black;"></span> Cebu Main to Sub-warehouse<br>
-<span style="background:blue;"></span> Sub-warehouse to Satellite Warehouse<br>
-<span style="background:green;"></span> Satellite Warehouse to Bin<br>`;
+          <span style="background:black"></span> Cebu Main Routes<br>
+          <span style="background:blue"></span> Sub-warehouse Routes<br>
+          <span style="background:green"></span> Satellite to Bin Routes<br>
+          <span style="background:red"></span> Bin Destination Markers<br>
+          <span style="background:gray"></span> Unspecified Routes
+        `;
         return div;
       };
-      legend.addTo(map);
+      legendControl.addTo(map);
     }
   </script>
 </body>
