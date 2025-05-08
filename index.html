@@ -7,12 +7,21 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/awesomplete/1.1.5/awesomplete.min.css"/>
   <style>
     #map { height: 600px; width: 100%; }
     #filters { margin: 20px; font-family: Arial, sans-serif; }
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
     .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
+    #searchContainer {
+      display: inline-block;
+      margin-left: 20px;
+    }
+    #searchInput {
+      padding: 5px;
+      width: 200px;
+    }
   </style>
 </head>
 <body>
@@ -20,6 +29,9 @@
     <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
     <label>Supervisor: <select id="supervisorFilter"></select></label>
     <label>Region: <select id="regionFilter"></select></label>
+    <div id="searchContainer">
+      <input id="searchInput" placeholder="Search Destination" class="awesomplete"/>
+    </div>
     <button id="resetButton">Reset View</button>
   </div>
   <div id="map"></div>
@@ -27,6 +39,8 @@
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/awesomplete/1.1.5/awesomplete.min.js"></script>
+
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
@@ -49,7 +63,7 @@
       "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
     };
 
-    let allData = [], lines = [], markers = [];
+    let allData = [], lines = [], markers = [], searchMarker = null;
     const markerCluster = L.markerClusterGroup();
     map.addLayer(markerCluster);
 
@@ -64,12 +78,18 @@
 
     function setup() {
       populateFilters();
+      setupAutocomplete();
       updateMap();
       addLegend();
       document.getElementById('resetButton').addEventListener('click', () => {
         document.getElementById('warehouseTypeFilter').value = 'all';
         document.getElementById('supervisorFilter').value = 'all';
         document.getElementById('regionFilter').value = 'all';
+        document.getElementById('searchInput').value = '';
+        if (searchMarker) {
+          map.removeLayer(searchMarker);
+          searchMarker = null;
+        }
         updateMap();
       });
     }
@@ -93,10 +113,32 @@
       sel.addEventListener('change', updateMap);
     }
 
+    function setupAutocomplete() {
+      const input = document.getElementById('searchInput');
+      const destinationNames = Array.from(new Set(allData.map(d => d['Destination Name']).filter(Boolean))).sort();
+      new Awesomplete(input, { list: destinationNames });
+
+      input.addEventListener('awesomplete-selectcomplete', e => {
+        const selectedName = e.text.value;
+        const match = allData.find(d => d['Destination Name'] === selectedName);
+        if (match && match['Destination Lat'] && match['Destination Long']) {
+          const lat = parseFloat(match['Destination Lat']);
+          const lng = parseFloat(match['Destination Long']);
+          if (searchMarker) map.removeLayer(searchMarker);
+          searchMarker = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${selectedName}</b>`).openPopup();
+          map.setView([lat, lng], 13);
+        }
+      });
+    }
+
     function updateMap(){
       lines.forEach(l=>map.removeLayer(l)); lines=[];
       markers.forEach(m=>map.removeLayer(m)); markers=[];
       markerCluster.clearLayers();
+      if (searchMarker) {
+        map.removeLayer(searchMarker);
+        searchMarker = null;
+      }
 
       const wf = document.getElementById('warehouseTypeFilter').value;
       const sf = document.getElementById('supervisorFilter').value;
@@ -206,15 +248,13 @@
       }
     }
 
-    let animationCooldown = false;  // Cooldown flag for animation
+    let animationCooldown = false;
 
     function animateRoute(from, to, warehouseType) {
-      if (animationCooldown) return;  // Prevent new animations if cooldown is active
+      if (animationCooldown) return;
+      animationCooldown = true;
 
-      animationCooldown = true;  // Start cooldown
-
-      const steps = 200;
-      const delay = 15;
+      const steps = 200, delay = 15;
       let currentStep = 0;
 
       const color = getDestColor(warehouseType);
@@ -232,12 +272,9 @@
         if (currentStep >= steps) {
           clearInterval(interval);
           map.removeLayer(marker);
-          setTimeout(() => {
-            animationCooldown = false;  // Reset cooldown after animation completes
-          }, 2000);  // 2-second cooldown before the cooldown is lifted
+          setTimeout(() => animationCooldown = false, 2000);
           return;
         }
-
         const newLat = from[0] + latStep * currentStep;
         const newLng = from[1] + lngStep * currentStep;
         marker.setLatLng([newLat, newLng]);
