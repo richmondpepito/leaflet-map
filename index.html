@@ -226,6 +226,9 @@
         if (currentStep >= steps) {
           clearInterval(interval);
           map.removeLayer(marker);
+          setTimeout(() => {
+        animationCooldown = false;  // Reset cooldown after animation completes
+      }, 2000);  // 2-second cooldown before the cooldown is lifted
           return;
         }
         const newLat = from[0] + latStep * currentStep;
