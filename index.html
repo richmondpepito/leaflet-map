@@ -1,29 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Warehouse Routes Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <title>Warehouse Route Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <style>
-    #map { height: 600px; width: 100%; }
-    #filters { margin: 20px; font-family: Arial, sans-serif; }
-    #resetButton { padding: 6px 12px; margin-left:10px; }
-    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
-    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
-    #searchBar { 
-      position: absolute; 
-      top: 20px; 
-      right: 20px; 
-      z-index: 1000; 
-      width: 250px; 
-      padding: 6px;
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    .legend {
+      background: white;
+      padding: 10px;
+      line-height: 1.5;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
       font-size: 14px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background-color: #fff;
+    }
+    .legend span {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    #filters {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+    }
+    #searchBar {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      z-index: 1001;
+      padding: 8px;
+      font-size: 14px;
+      width: 250px;
     }
     #autocomplete-list {
       position: absolute;
@@ -36,9 +59,14 @@
       border: 1px solid #ccc;
       border-radius: 4px;
       z-index: 1001;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
     }
     #autocomplete-list li {
-      padding: 8px;
+      padding: 6px 8px;
       cursor: pointer;
     }
     #autocomplete-list li:hover {
@@ -47,239 +75,233 @@
   </style>
 </head>
 <body>
-  <div id="filters">
-    <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
-    <label>Supervisor: <select id="supervisorFilter"></select></label>
-    <label>Region: <select id="regionFilter"></select></label>
-    <button id="resetButton">Reset View</button>
-  </div>
-  <div id="map"></div>
-  <input id="searchBar" type="text" placeholder="Search for a destination..." />
-  <ul id="autocomplete-list"></ul>
 
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script>
-    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
-    const cebuCoords = [10.3802, 123.9961];
+<div id="filters">
+  <label>Warehouse Type:
+    <select id="warehouseTypeFilter">
+      <option value="all">All</option>
+      <option value="Sub-warehouse">Sub-warehouse</option>
+      <option value="Satellite Warehouse">Satellite Warehouse</option>
+      <option value="Bin">Bin</option>
+    </select>
+  </label><br/>
+  <label>Supervisor:
+    <select id="supervisorFilter">
+      <option value="all">All</option>
+    </select>
+  </label><br/>
+  <label>Region:
+    <select id="regionFilter">
+      <option value="all">All</option>
+    </select>
+  </label><br/>
+  <button id="resetButton">Reset</button>
+</div>
 
-    const cebuIcon = L.icon({
-      iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
-      iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
+<input type="text" id="searchBar" placeholder="Search Destination...">
+<ul id="autocomplete-list"></ul>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
+<script src="provinceBounds.js"></script>
+<script>
+  const map = L.map('map').setView([10.3157, 123.8854], 6);
+
+  const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  const markerCluster = L.markerClusterGroup();
+  const routeLines = L.layerGroup();
+  const legend = L.control({ position: 'bottomright' });
+
+  let allData = [];
+  let searchMarker = null;
+
+  const warehouseTypeFilter = document.getElementById('warehouseTypeFilter');
+  const supervisorFilter = document.getElementById('supervisorFilter');
+  const regionFilter = document.getElementById('regionFilter');
+
+  function getColor(route) {
+    const colors = {
+      Route1: '#1f77b4',
+      Route2: '#ff7f0e',
+      Route3: '#2ca02c',
+      Route4: '#d62728',
+      Route5: '#9467bd'
+    };
+    return colors[route] || '#000000';
+  }
+
+  function getBinColor(type) {
+    return type === 'Bin' ? 'red' : '#3388ff';
+  }
+
+  function updateMap() {
+    markerCluster.clearLayers();
+    routeLines.clearLayers();
+
+    const type = warehouseTypeFilter.value;
+    const supervisor = supervisorFilter.value;
+    const region = regionFilter.value;
+
+    const filtered = allData.filter(row =>
+      (type === 'all' || row['Warehouse Type'] === type) &&
+      (supervisor === 'all' || row['Supervisor'] === supervisor) &&
+      (region === 'all' || row['Region'] === region)
+    );
+
+    const destinations = {};
+
+    filtered.forEach(row => {
+      const origin = [parseFloat(row['Origin Lat']), parseFloat(row['Origin Long'])];
+      const destination = [parseFloat(row['Destination Lat']), parseFloat(row['Destination Long'])];
+      const route = row['Route'];
+      const color = getColor(route);
+      const typeColor = getBinColor(row['Warehouse Type']);
+
+      const line = L.polyline([origin, destination], { color }).bindTooltip(
+        `<b>Route:</b> ${route}<br><b>Type:</b> ${row['Warehouse Type']}<br><b>Destination:</b> ${row['Destination Name']}`,
+        { permanent: false }
+      );
+      routeLines.addLayer(line);
+
+      const destKey = row['Destination Name'];
+      if (!destinations[destKey]) {
+        const marker = L.circleMarker(destination, {
+          radius: 8,
+          fillColor: typeColor,
+          color: '#000',
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).bindTooltip(
+          `<b>${row['Destination Name']}</b><br>${row['Warehouse Type']}`,
+          { permanent: false }
+        );
+        destinations[destKey] = marker;
+        markerCluster.addLayer(marker);
+      }
     });
 
-    const map = L.map('map').setView([10.3157,123.8854], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    const regionBounds = {
-      "all": [[4.5,116],[20.5,127]], 
-      "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]], "Region II": [[16.2,121.3],[18.5,122.5]], 
-      "Region III": [[14.5,119.5],[16.2,121.5]], "NCR": [[14.3,120.8],[14.8,121.2]], "Region IV-A": [[13.4,120.5],[15,122]],
-      "Region IV-B": [[11.8,118],[13.8,121.5]], "Region V": [[12.5,123.2],[14,124.5]], "Region VI": [[10.3,121],[11.8,123]],
-      "Region VII": [[9.2,122.2],[11.5,124]], "Region VIII": [[10.5,124.5],[12.5,126]], "Region IX": [[6,121],[8.5,123]],
-      "Region X": [[7.5,123.5],[9.5,125]], "Region XI": [[6.5,125],[8,126.5]], "Region XII": [[6,124],[7.8,126]],
-      "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
-    };
-
-    let allData = [], lines = [], markers = [];
-    const markerCluster = L.markerClusterGroup();
     map.addLayer(markerCluster);
+    map.addLayer(routeLines);
+  }
 
-    Papa.parse(sheetUrl, {
+  function loadCSV() {
+    Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vRXiEjfsQZTx1OXgXvHfVTxq9PRebMHbGRcuKTVA2KyUghvdDIrDdPI9ZlsWgYJHcsawNaUYb7PvfrI/pub?gid=1510668684&single=true&output=csv", {
       download: true,
       header: true,
-      complete: res => {
-        allData = res.data.filter(r => r['Route ID']);
-        setup();
-      }
-    });
-
-    function setup() {
-      populateFilters();
-      updateMap();
-      addLegend();
-      document.getElementById('resetButton').addEventListener('click', () => {
-        document.getElementById('warehouseTypeFilter').value = 'all';
-        document.getElementById('supervisorFilter').value = 'all';
-        document.getElementById('regionFilter').value = 'all';
+      complete: function(results) {
+        allData = results.data.filter(row => row['Origin Lat'] && row['Destination Lat']);
+        populateFilters();
         updateMap();
-      });
-    }
-
-    function populateFilters(){
-      const warehouseTypeSet = new Set(), supervisorSet = new Set(), regionSet = new Set();
-      allData.forEach(d => {
-        warehouseTypeSet.add(d['Warehouse Type']);
-        supervisorSet.add(d['Supervisor']);
-        regionSet.add(d['Regional Destination']);
-      });
-      fillSelect('warehouseTypeFilter', warehouseTypeSet);
-      fillSelect('supervisorFilter', supervisorSet);
-      fillSelect('regionFilter', regionSet);
-    }
-
-    function fillSelect(id, set){
-      const sel = document.getElementById(id);
-      sel.innerHTML = '<option value="all">All</option>';
-      Array.from(set).sort().forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
-      sel.addEventListener('change', updateMap);
-    }
-
-    function updateMap(){
-      lines.forEach(l=>map.removeLayer(l)); lines=[];
-      markers.forEach(m=>map.removeLayer(m)); markers=[];
-      markerCluster.clearLayers();
-
-      const wf = document.getElementById('warehouseTypeFilter').value;
-      const sf = document.getElementById('supervisorFilter').value;
-      const rf = document.getElementById('regionFilter').value;
-
-      const filt = allData.filter(d =>
-        (wf==='all'||d['Warehouse Type']===wf)&&
-        (sf==='all'||d['Supervisor']===sf)&&
-        (rf==='all'||d['Regional Destination']===rf)
-      );
-
-      const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
-        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
-          permanent: false,
-          direction:'top'
-        });
-      map.addLayer(gtMarker);
-      markers.push(gtMarker);
-
-      filt.forEach(draw);
-
-      if (rf !== 'all' && regionBounds[rf]) {
-        map.fitBounds(regionBounds[rf]);
-      } else if (markers.length > 0) {
-        const group = L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.2));
-      } else {
-        map.setView([10.3157,123.8854], 6);
       }
-    }
+    });
+  }
 
-    function draw(d){
-      if (!d['Origin Lat'] || !d['Origin Long'] || !d['Destination Lat'] || !d['Destination Long']) return;
-
-      const oLat = +d['Origin Lat'], oLng = +d['Origin Long'];
-      const dLat = +d['Destination Lat'], dLng = +d['Destination Long'];
-
-      const o=[oLat, oLng], u=[dLat, dLng];
-      const txt = `
-<b>Route Type:</b> ${d['Route Type']}<br>
-<b>From:</b> ${d['Origin Name']}<br>
-<b>To:</b> ${d['Destination Name']}<br>
-<b>Location:</b> ${d['Destination Location']}<br>
-<b>Supervisor:</b> ${d['Supervisor']}`;
-
-      const line = L.polyline([o,u], {
-        color:getColor(d['Route Type']),
-        weight:1.5,
-        dashArray:getDash(d['Route Type'])
-      }).addTo(map).bindTooltip(txt);
-
-      line.on('mouseover', () => animateRoute(o, u, d['Warehouse Type']));
-      line.on('click', () => animateRoute(o, u, d['Warehouse Type']));
-
-      lines.push(line);
-
-      const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
-
-      if (!isCebuMain) {
-        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
-          .bindTooltip(txt);
-        map.addLayer(om);
-        markers.push(om);
-      }
-
-      const destColor = getDestColor(d['Warehouse Type']);
-      const dm = L.circleMarker(u, {
-        radius: getSize(d['Route Type']),
-        color: destColor,
-        fillColor: destColor,
-        fillOpacity: 1
-      }).bindTooltip(txt);
-      markerCluster.addLayer(dm);
-      markers.push(dm);
-    }
-
-    function getColor(t){
-      switch (t.trim()) {
-        case 'Cebu Main to Sub-warehouse': return 'black';
-        case 'Cebu Main to Bin': return 'black';
-        case 'Sub-warehouse to Satellite Warehouse': return 'blue';
-        case 'Sub-warehouse to Bin': return 'blue';
-        case 'Satellite Warehouse to Bin': return 'green';
-        default: return 'gray';
-      }
-    }
-
-    function getDestColor(type){
-      switch (type.trim()) {
-        case 'Sub-warehouse': return 'blue';
-        case 'Satellite Warehouse': return 'green';
-        case 'Bin': return 'red';
-        default: return 'gray';
-      }
-    }
-
-    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
-
-    function getSize(t){
-      switch (t.trim()) {
-        case 'Cebu Main to Sub-warehouse': return 6;
-        case 'Cebu Main to Bin': return 2;
-        case 'Sub-warehouse to Satellite Warehouse': return 4;
-        case 'Sub-warehouse to Bin': return 2;
-        case 'Satellite Warehouse to Bin': return 1;
-        default: return 3;
-      }
-    }
-
-    function addLegend(){
-      const legend = L.control({position:'bottomright'});
-      legend.onAdd = () => {
-        const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = `
-<b>Route Type</b><br>
-<span style="background:gray;"></span> Main Plant to Sub-warehouse<br>
-<span style="background:blue;"></span> Sub-warehouse to Satellite Warehouse<br>
-<span style="background:green;"></span> Satellite Warehouse to Bin`;
-        return div;
-      };
-      legend.addTo(map);
-    }
-
-    // Autocomplete search functionality
-    let matches = [];
-
-    document.getElementById('searchBar').addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase();
-      matches = allData.filter(item => item['Destination Name'].toLowerCase().includes(query));
-      updateAutocompleteList(query);
+  function populateFilters() {
+    const supervisors = new Set();
+    const regions = new Set();
+    allData.forEach(row => {
+      if (row['Supervisor']) supervisors.add(row['Supervisor']);
+      if (row['Region']) regions.add(row['Region']);
     });
 
-    function updateAutocompleteList(query) {
-      const list = document.getElementById('autocomplete-list');
-      list.innerHTML = '';
-      matches.forEach(match => {
-        const li = document.createElement('li');
-        li.textContent = match['Destination Name'];
-        li.addEventListener('click', () => handleSelectDestination(match));
-        list.appendChild(li);
-      });
-    }
+    supervisors.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = opt.text = s;
+      supervisorFilter.appendChild(opt);
+    });
 
-    function handleSelectDestination(match) {
-      const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
-      map.setView(coords, 12);  // Zoom in to the clicked destination
-      L.marker(coords).addTo(map)
-        .bindPopup(`<b>${match['Destination Name']}</b>`)
-        .openPopup();
+    regions.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = opt.text = r;
+      regionFilter.appendChild(opt);
+    });
+  }
+
+  warehouseTypeFilter.addEventListener('change', updateMap);
+  supervisorFilter.addEventListener('change', updateMap);
+  regionFilter.addEventListener('change', () => {
+    const region = regionFilter.value;
+    if (region !== 'all' && provinceBounds[region]) {
+      map.fitBounds(provinceBounds[region]);
     }
-  </script>
+    updateMap();
+  });
+
+  document.getElementById('resetButton').addEventListener('click', () => {
+    warehouseTypeFilter.value = 'all';
+    supervisorFilter.value = 'all';
+    regionFilter.value = 'all';
+    if (searchMarker) {
+      map.removeLayer(searchMarker);
+      searchMarker = null;
+    }
+    updateMap();
+  });
+
+  // GT logo at Cebu Main
+  const gtIcon = L.icon({
+    iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/8/89/Logo_GT.png',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20]
+  });
+  L.marker([10.3157, 123.8854], { icon: gtIcon }).addTo(map).bindPopup("<b>Cebu Main</b>");
+
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'legend');
+    div.innerHTML = `<b>Route Colors</b><br>
+      <span style="background:#1f77b4"></span> Route1<br>
+      <span style="background:#ff7f0e"></span> Route2<br>
+      <span style="background:#2ca02c"></span> Route3<br>
+      <span style="background:#d62728"></span> Route4<br>
+      <span style="background:#9467bd"></span> Route5<br>
+      <span style="background:red"></span> Bin`;
+    return div;
+  };
+  legend.addTo(map);
+
+  // Search bar functionality
+  let matches = [];
+
+  document.getElementById('searchBar').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    matches = allData.filter(item => item['Destination Name'].toLowerCase().includes(query));
+    updateAutocompleteList(query);
+  });
+
+  function updateAutocompleteList(query) {
+    const list = document.getElementById('autocomplete-list');
+    list.innerHTML = '';
+    matches.forEach(match => {
+      const li = document.createElement('li');
+      li.textContent = match['Destination Name'];
+      li.addEventListener('click', () => handleSelectDestination(match));
+      list.appendChild(li);
+    });
+  }
+
+  function handleSelectDestination(match) {
+    if (searchMarker) {
+      map.removeLayer(searchMarker);
+      searchMarker = null;
+    }
+    const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
+    map.setView(coords, 12);
+    searchMarker = L.marker(coords).addTo(map)
+      .bindPopup(`<b>${match['Destination Name']}</b>`)
+      .openPopup();
+  }
+
+  loadCSV();
+</script>
+
 </body>
 </html>
