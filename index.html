@@ -9,96 +9,19 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <style>
     #map { height: 600px; width: 100%; }
-    #filters {
-      display: flex;
-      justify-content: space-between;
-      margin: 20px;
-      font-family: Arial, sans-serif;
-      align-items: center;
-      width: 100%;
-    }
-    #filters div {
-      flex: 1;
-    }
-    #resetButton {
-      padding: 6px 12px;
-      margin-left: 10px;
-    }
-    .legend {
-      background: white;
-      padding: 8px;
-      font-size: 12px;
-      line-height: 1.4;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
-    .legend span {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      margin-right: 4px;
-      vertical-align: middle;
-    }
-
-    /* Search bar styles */
-    #search-container {
-      position: relative;
-      width: 100%;
-      max-width: 300px;
-      margin-right: 10px;
-    }
-    #searchInput {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 16px;
-      box-sizing: border-box;
-      background-color: #f9f9f9;
-    }
-    #searchResults {
-      position: absolute;
-      top: 40px;
-      left: 0;
-      width: 100%;
-      background: white;
-      border: 1px solid #ccc;
-      max-height: 200px;
-      overflow-y: auto;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      z-index: 9999;
-      border-radius: 4px;
-      display: none;
-    }
-    .autocomplete-suggestion {
-      padding: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background-color 0.2s ease;
-    }
-    .autocomplete-suggestion:hover {
-      background-color: #e9e9e9;
-    }
-    .highlight {
-      font-weight: bold;
-      color: #007bff;
-    }
+    #filters { margin: 20px; font-family: Arial, sans-serif; }
+    #resetButton { padding: 6px 12px; margin-left:10px; }
+    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
+    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
   </style>
 </head>
 <body>
   <div id="filters">
-    <div>
-      <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
-      <label>Supervisor: <select id="supervisorFilter"></select></label>
-      <label>Region: <select id="regionFilter"></select></label>
-      <button id="resetButton">Reset View</button>
-    </div>
-    <div id="search-container">
-      <input id="searchInput" type="text" placeholder="Search warehouse..." autocomplete="off"/>
-      <div id="searchResults"></div>
-    </div>
+    <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
+    <label>Supervisor: <select id="supervisorFilter"></select></label>
+    <label>Region: <select id="regionFilter"></select></label>
+    <button id="resetButton">Reset View</button>
   </div>
-
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
@@ -107,6 +30,7 @@
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
+
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
       iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
@@ -218,7 +142,6 @@
 <b>Location:</b> ${d['Destination Location']}<br>
 <b>Supervisor:</b> ${d['Supervisor']}`;
 
-
       const line = L.polyline([o,u], {
         color:getColor(d['Route Type']),
         weight:1.5,
@@ -233,23 +156,24 @@
       const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
 
       if (!isCebuMain) {
-        const m = L.marker(u).addTo(markerCluster)
-          .bindTooltip(d['Destination Name'], {direction:'top'})
-          .on('click', () => { 
-            line.openTooltip();
-            map.setView(m.getLatLng(), 11); 
-          });
-        markers.push(m);
-        m._searchLabel = d['Destination Name']; 
+        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
+          .bindTooltip(txt);
+        map.addLayer(om);
+        markers.push(om);
       }
+
+      const destColor = getDestColor(d['Warehouse Type']);
+      const dm = L.circleMarker(u, {
+        radius: getSize(d['Route Type']),
+        color: destColor,
+        fillColor: destColor,
+        fillOpacity: 1
+      }).bindTooltip(txt);
+      markerCluster.addLayer(dm);
+      markers.push(dm);
     }
 
-    function animateRoute(o, u, type) {
-      const routeLine = L.polyline([o,u], { color: getDestColor(type) }).addTo(map);
-      setTimeout(() => map.removeLayer(routeLine), 2000);
-    }
-
-    function getDestColor(t){
+    function getColor(t){
       switch (t.trim()) {
         case 'Cebu Main to Sub-warehouse': return 'black';
         case 'Cebu Main to Bin': return 'black';
@@ -260,46 +184,81 @@
       }
     }
 
-    function getDash(t){
-      switch (t.trim()) {
-        case 'Cebu Main to Sub-warehouse': return 4;
-        case 'Cebu Main to Bin': return 4;
-        case 'Sub-warehouse to Satellite Warehouse': return 3;
-        case 'Sub-warehouse to Bin': return 3;
-        case 'Satellite Warehouse to Bin': return 2;
-        default: return 3;
+    function getDestColor(type){
+      switch (type.trim()) {
+        case 'Sub-warehouse': return 'blue';
+        case 'Satellite Warehouse': return 'green';
+        case 'Bin': return 'red';
+        default: return 'gray';
       }
     }
 
-    function handleSearch() {
-      const term = searchInput.value.trim().toLowerCase();
-      searchResultsDiv.innerHTML = '';
-      if (!term) return;
+    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
 
-      const regex = new RegExp(`(${term})`, 'gi');
-      const matches = markers.filter(m => m._searchLabel && m._searchLabel.toLowerCase().includes(term));
-
-      matches.forEach(m => {
-        const div = document.createElement('div');
-        div.className = 'autocomplete-suggestion';
-        
-        const label = m._searchLabel.replace(regex, "<strong class='highlight'>$1</strong>");
-        div.innerHTML = label;
-        
-        div.addEventListener('click', () => {
-          map.setView(m.getLatLng(), 11);
-          m.openTooltip();
-          searchInput.value = '';
-          searchResultsDiv.innerHTML = '';
-        });
-
-        searchResultsDiv.appendChild(div);
-      });
-
-      searchResultsDiv.style.display = matches.length ? 'block' : 'none';
+    function getSize(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 6;
+        case 'Cebu Main to Bin': return 2;
+        case 'Sub-warehouse to Satellite Warehouse': return 4;
+        case 'Sub-warehouse to Bin': return 2;
+        case 'Satellite Warehouse to Bin': return 2;
+        default: return 4;
+      }
     }
 
-    searchInput.addEventListener('input', handleSearch);
+    let animationCooldown = false;  // Cooldown flag for animation
+
+    function animateRoute(from, to, warehouseType) {
+      if (animationCooldown) return;  // Prevent new animations if cooldown is active
+
+      animationCooldown = true;  // Start cooldown
+
+      const steps = 200;
+      const delay = 15;
+      let currentStep = 0;
+
+      const color = getDestColor(warehouseType);
+      const marker = L.circleMarker(from, {
+        radius: 4,
+        color: color,
+        fillColor: color,
+        fillOpacity: 1
+      }).addTo(map);
+
+      const latStep = (to[0] - from[0]) / steps;
+      const lngStep = (to[1] - from[1]) / steps;
+
+      const interval = setInterval(() => {
+        if (currentStep >= steps) {
+          clearInterval(interval);
+          map.removeLayer(marker);
+          setTimeout(() => {
+            animationCooldown = false;  // Reset cooldown after animation completes
+          }, 2000);  // 2-second cooldown before the cooldown is lifted
+          return;
+        }
+
+        const newLat = from[0] + latStep * currentStep;
+        const newLng = from[1] + lngStep * currentStep;
+        marker.setLatLng([newLat, newLng]);
+        currentStep++;
+      }, delay);
+    }
+
+    function addLegend() {
+      const legend = L.control({ position: 'topright' });
+
+      legend.onAdd = function () {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML += '<strong>Route Types</strong><br>';
+        div.innerHTML += '<span style="background:black"></span> Cebu Main to Sub-warehouse<br>';
+        div.innerHTML += '<span style="background:blue"></span> Sub-warehouse to Satellite Warehouse<br>';
+        div.innerHTML += '<span style="background:green"></span> Satellite Warehouse to Bin<br>';
+        div.innerHTML += '<span style="background:red"></span> Bin<br>';
+        return div;
+      };
+      legend.addTo(map);
+    }
   </script>
 </body>
 </html>
