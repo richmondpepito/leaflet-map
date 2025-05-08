@@ -24,7 +24,6 @@
       border: 1px solid #ccc;
       border-radius: 4px;
       background-color: #fff;
-      font-family: 'Arial', sans-serif;
     }
     #autocomplete-list {
       position: absolute;
@@ -37,14 +36,10 @@
       border: 1px solid #ccc;
       border-radius: 4px;
       z-index: 1001;
-      padding: 0;
-      margin: 0;
     }
     #autocomplete-list li {
-      list-style-type: none;
       padding: 8px;
       cursor: pointer;
-      font-family: 'Arial', sans-serif;
     }
     #autocomplete-list li:hover {
       background-color: #f1f1f1;
@@ -108,7 +103,6 @@
         document.getElementById('warehouseTypeFilter').value = 'all';
         document.getElementById('supervisorFilter').value = 'all';
         document.getElementById('regionFilter').value = 'all';
-        clearSearchPin();  // Clear the pin on reset
         updateMap();
       });
     }
@@ -261,7 +255,6 @@
 
     // Autocomplete search functionality
     let matches = [];
-    let searchMarker = null;  // Variable to store the search pin
 
     document.getElementById('searchBar').addEventListener('input', (e) => {
       const query = e.target.value.toLowerCase();
@@ -281,30 +274,11 @@
     }
 
     function handleSelectDestination(match) {
-      // Remove any existing search marker before placing a new one
-      if (searchMarker) {
-        map.removeLayer(searchMarker);
-      }
-      
       const coords = [parseFloat(match['Destination Lat']), parseFloat(match['Destination Long'])];
-      map.setView(coords, 12);  // Zoom to the selected destination
-      searchMarker = L.marker(coords)
-        .bindPopup(`
-          <b>Route Type:</b> ${match['Route Type']}<br>
-          <b>From:</b> ${match['Origin Name']}<br>
-          <b>To:</b> ${match['Destination Name']}<br>
-          <b>Location:</b> ${match['Destination Location']}<br>
-          <b>Supervisor:</b> ${match['Supervisor']}
-        `)
-        .addTo(map)
+      map.setView(coords, 12);  // Zoom in to the clicked destination
+      L.marker(coords).addTo(map)
+        .bindPopup(`<b>${match['Destination Name']}</b>`)
         .openPopup();
-    }
-
-    function clearSearchPin() {
-      if (searchMarker) {
-        map.removeLayer(searchMarker);  // Clear the pin
-      }
-      document.getElementById('searchBar').value = ''; // Reset the search input field
     }
   </script>
 </body>
