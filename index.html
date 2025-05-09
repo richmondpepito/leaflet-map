@@ -128,27 +128,28 @@
       addLegend();
       setupAutocomplete();
 
-      document.getElementById('resetButton').addEventListener('click', () => {
-        document.getElementById('warehouseTypeFilter').value = 'all';
-        document.getElementById('supervisorFilter').value = 'all';
-        document.getElementById('regionFilter').value = 'all';
-        document.getElementById('searchInput').value = '';
-        if (currentSearchMarker) {
-          map.removeLayer(currentSearchMarker);
-          currentSearchMarker = null;
-        }
-        updateMap();
-      });
+      document.getElementById('resetButton').addEventListener('click', resetMap);
 
       document.getElementById('toggleHeatmap').addEventListener('change', function () {
         if (this.checked) {
-          // Ensure heat layer is updated with heatPoints
           heatLayer.setLatLngs(heatPoints);
           map.addLayer(heatLayer);
         } else {
           map.removeLayer(heatLayer);
         }
       });
+    }
+
+    function resetMap() {
+      document.getElementById('warehouseTypeFilter').value = 'all';
+      document.getElementById('supervisorFilter').value = 'all';
+      document.getElementById('regionFilter').value = 'all';
+      document.getElementById('searchInput').value = '';
+      if (currentSearchMarker) {
+        map.removeLayer(currentSearchMarker);
+        currentSearchMarker = null;
+      }
+      updateMap();
     }
 
     function populateFilters(){
