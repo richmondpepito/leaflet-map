@@ -142,6 +142,7 @@
 
       document.getElementById('toggleHeatmap').addEventListener('change', function () {
         if (this.checked) {
+          // Ensure heat layer is updated with heatPoints
           heatLayer.setLatLngs(heatPoints);
           map.addLayer(heatLayer);
         } else {
@@ -215,152 +216,54 @@
 
       const o=[+d['Origin Lat'], +d['Origin Long']];
       const u=[+d['Destination Lat'], +d['Destination Long']];
-      const txt = `
-<b>Route Type:</b> ${d['Route Type']}<br>
-<b>From:</b> ${d['Origin Name']}<br>
-<b>To:</b> ${d['Destination Name']}<br>
-<b>Location:</b> ${d['Destination Location']}<br>
-<b>Supervisor:</b> ${d['Supervisor']}`;
+      const latLngs = [o, u];
 
-      const line = L.polyline([o,u], {
-        color:getColor(d['Route Type']),
-        weight:1.5,
-        dashArray:getDash(d['Route Type'])
-      }).addTo(map).bindTooltip(txt);
+      lines.push(L.polyline(latLngs, {color: 'blue', weight: 2}).addTo(map));
 
-      line.on('mouseover', () => animateRoute(o, u, d['Warehouse Type']));
-      line.on('click', () => animateRoute(o, u, d['Warehouse Type']));
-      lines.push(line);
+      const m = L.marker(u, {
+        icon: L.divIcon({
+          className: 'destination-icon',
+          html: `<div class="circle">${d['Route ID']}</div>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 30]
+        })
+      }).bindPopup(`<b>Route ID: ${d['Route ID']}</b><br><b>Warehouse Type:</b> ${d['Warehouse Type']}<br><b>Supervisor:</b> ${d['Supervisor']}<br><b>Destination:</b> ${d['Destination Name']}<br><b>Region:</b> ${d['Regional Destination']}`);
 
-      const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
+      markers.push(m);
+      markerCluster.addLayer(m);
 
-      if (!isCebuMain) {
-        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
-          .bindTooltip(txt);
-        map.addLayer(om);
-        markers.push(om);
-      }
-
-      const destColor = getDestColor(d['Warehouse Type']);
-      const dm = L.circleMarker(u, {
-        radius: getSize(d['Route Type']),
-        color: destColor,
-        fillColor: destColor,
-        fillOpacity: 1
-      }).bindTooltip(txt);
-      markerCluster.addLayer(dm);
-      markers.push(dm);
-
-      heatPoints.push([u[0], u[1], 0.5]);
+      heatPoints.push(o); // Add origin for heatmap
+      heatPoints.push(u); // Add destination for heatmap
     }
 
-    function getColor(t){
-      switch (t.trim()) {
-        case 'Cebu Main to Sub-warehouse': return 'black';
-        case 'Cebu Main to Bin': return 'black';
-        case 'Sub-warehouse to Satellite Warehouse': return 'blue';
-        case 'Sub-warehouse to Bin': return 'blue';
-        case 'Satellite Warehouse to Bin': return 'green';
-        default: return 'gray';
-      }
-    }
-
-    function getDestColor(type){
-      switch (type.trim()) {
-        case 'Sub-warehouse': return 'blue';
-        case 'Satellite Warehouse': return 'green';
-        case 'Bin': return 'red';
-        default: return 'gray';
-      }
-    }
-
-    function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
-
-    function getSize(t){
-      switch (t.trim()) {
-        case 'Cebu Main to Sub-warehouse': return 6;
-        case 'Cebu Main to Bin': return 2;
-        case 'Sub-warehouse to Satellite Warehouse': return 4;
-        case 'Sub-warehouse to Bin': return 2;
-        case 'Satellite Warehouse to Bin': return 2;
-        default: return 4;
-      }
-    }
-
-    let animationCooldown = false;
-
-    function animateRoute(from, to, warehouseType) {
-      if (animationCooldown) return;
-      animationCooldown = true;
-
-      const steps = 200;
-      const delay = 15;
-      let currentStep = 0;
-
-      const color = getDestColor(warehouseType);
-      const marker = L.circleMarker(from, {
-        radius: 4,
-        color: color,
-        fillColor: color,
-        fillOpacity: 1
-      }).addTo(map);
-
-      const latStep = (to[0] - from[0]) / steps;
-      const lngStep = (to[1] - from[1]) / steps;
-
-      const interval = setInterval(() => {
-        if (currentStep >= steps) {
-          clearInterval(interval);
-          map.removeLayer(marker);
-          setTimeout(() => { animationCooldown = false; }, 2000);
-          return;
-        }
-        const newLat = from[0] + latStep * currentStep;
-        const newLng = from[1] + lngStep * currentStep;
-        marker.setLatLng([newLat, newLng]);
-        currentStep++;
-      }, delay);
-    }
-
-    function setupAutocomplete() {
-      const destinations = allData.map(d => ({
-        label: d['Destination Name'],
-        value: d['Destination Name'],
-        lat: +d['Destination Lat'],
-        lng: +d['Destination Long']
-      })).filter(d => d.lat && d.lng);
-
+    function setupAutocomplete(){
+      const destinations = Array.from(new Set(allData.map(d => d['Destination Name'])));
       $("#searchInput").autocomplete({
         source: destinations,
         select: function(event, ui) {
-          if (currentSearchMarker) {
-            map.removeLayer(currentSearchMarker);
-            currentSearchMarker = null;
+          const destination = ui.item.value;
+          const foundMarker = markers.find(m => m.getPopup().getContent().includes(destination));
+          if (foundMarker) {
+            map.setView(foundMarker.getLatLng(), 12);
+            foundMarker.openPopup();
           }
-          const { lat, lng, label } = ui.item;
-          currentSearchMarker = L.marker([lat, lng])
-            .addTo(map)
-            .bindPopup(`<b>${label}</b>`)
-            .openPopup();
-          map.setView([lat, lng], 12);
         }
       });
     }
 
-    function addLegend(){
-      const legendControl = L.control({position:'bottomright'});
-      legendControl.onAdd = function(){
-        const div = L.DomUtil.create('div','legend');
+    function addLegend() {
+      const legend = L.control({position: 'topright'});
+      legend.onAdd = function () {
+        const div = L.DomUtil.create('div', 'legend');
         div.innerHTML = `
-          <span style="background:black"></span> Cebu Main Routes<br>
-          <span style="background:blue"></span> Sub-warehouse Routes<br>
-          <span style="background:green"></span> Satellite to Bin Routes<br>
-          <span style="background:red"></span> Bin Destination Markers<br>
-          <span style="background:gray"></span> Unspecified Routes
+          <b>Heatmap Legend</b><br>
+          <span style="background:blue"></span> Low<br>
+          <span style="background:lime"></span> Medium<br>
+          <span style="background:red"></span> High
         `;
         return div;
       };
-      legendControl.addTo(map);
+      legend.addTo(map);
     }
   </script>
 </body>
