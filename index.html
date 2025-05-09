@@ -236,10 +236,10 @@
     function getSize(t){
       switch (t.trim()) {
         case 'Cebu Main to Sub-warehouse': return 6;
-        case 'Cebu Main to Bin': return 2;
+        case 'Cebu Main to Bin': return 3;
         case 'Sub-warehouse to Satellite Warehouse': return 4;
-        case 'Sub-warehouse to Bin': return 2;
-        case 'Satellite Warehouse to Bin': return 2;
+        case 'Sub-warehouse to Bin': return 3;
+        case 'Satellite Warehouse to Bin': return 3;
         default: return 4;
       }
     }
@@ -269,7 +269,7 @@
         if (currentStep >= steps) {
           clearInterval(interval);
           map.removeLayer(marker);
-          setTimeout(() => { animationCooldown = false; }, 2000);
+          setTimeout(() => { animationCooldown = false; }, 100);
           return;
         }
         const newLat = from[0] + latStep * currentStep;
