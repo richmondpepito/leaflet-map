@@ -9,28 +9,50 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" />
   <style>
-    #map { height: 600px; width: 100%; position: relative; z-index: 1; }
+    #map { height: 600px; width: 100%; }
     #filters { margin: 20px; font-family: Arial, sans-serif; }
     #resetButton { padding: 6px 12px; margin-left:10px; }
-    .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
-    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
-    #searchBarContainer {
-      margin: 10px 20px;
+    .legend {
+      background:white; padding:8px; font-size:12px;
+      line-height:1.4; border-radius:4px; border:1px solid #ccc;
+    }
+
+    .legend span {
+      display:inline-block; width:12px; height:12px;
+      margin-right:4px; vertical-align:middle;
+    }
+
+    #searchContainer {
+      position: absolute;
+      top: 20px;
+      right: 20px;
       z-index: 1000;
-      position: relative;
-    }
-    #searchBar {
-      width: 300px;
+      background: white;
       padding: 6px;
-      font-size: 14px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-family: Arial, sans-serif;
     }
+
+    #searchInput {
+      width: 200px;
+      padding: 4px;
+    }
+
     .ui-autocomplete {
       z-index: 2000 !important;
+    }
+
+    #heatmapToggleContainer {
+      position: absolute;
+      top: 100px;
+      right: 20px;
+      z-index: 1000;
       background: white;
-      border: 1px solid #ccc;
-      max-height: 200px;
-      overflow-y: auto;
-      font-size: 14px;
+      padding: 6px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-family: Arial, sans-serif;
     }
   </style>
 </head>
@@ -40,22 +62,27 @@
     <label>Supervisor: <select id="supervisorFilter"></select></label>
     <label>Region: <select id="regionFilter"></select></label>
     <button id="resetButton">Reset View</button>
-    <label><input type="checkbox" id="toggleHeatmap" /> Show Heatmap</label>
   </div>
-  <div id="searchBarContainer">
-    <input type="text" id="searchBar" placeholder="Search destination name..." />
+  <div id="searchContainer">
+    <input type="text" id="searchInput" placeholder="Search Destination..." />
+  </div>
+  <div id="heatmapToggleContainer">
+    <label><input type="checkbox" id="toggleHeatmap" /> Show Heatmap</label>
   </div>
   <div id="map"></div>
 
+  <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
   <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
     const cebuCoords = [10.3802, 123.9961];
+
     const cebuIcon = L.icon({
       iconUrl: 'https://www.gtcosmetics.com.ph/wp-content/uploads/2020/10/GT-Cosmetics.png',
       iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
@@ -65,8 +92,8 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const regionBounds = {
-      "all": [[4.5,116],[20.5,127]],
-      "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]], "Region II": [[16.2,121.3],[18.5,122.5]],
+      "all": [[4.5,116],[20.5,127]], 
+      "Region I": [[15.6,119.5],[18.7,121.5]], "CAR": [[16,120.5],[18,122]], "Region II": [[16.2,121.3],[18.5,122.5]], 
       "Region III": [[14.5,119.5],[16.2,121.5]], "NCR": [[14.3,120.8],[14.8,121.2]], "Region IV-A": [[13.4,120.5],[15,122]],
       "Region IV-B": [[11.8,118],[13.8,121.5]], "Region V": [[12.5,123.2],[14,124.5]], "Region VI": [[10.3,121],[11.8,123]],
       "Region VII": [[9.2,122.2],[11.5,124]], "Region VIII": [[10.5,124.5],[12.5,126]], "Region IX": [[6,121],[8.5,123]],
@@ -74,12 +101,17 @@
       "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
     };
 
-    let allData = [], lines = [], markers = [], searchMarker = null;
+    let allData = [], lines = [], markers = [], heatPoints = [];
+    let currentSearchMarker = null;
     const markerCluster = L.markerClusterGroup();
     map.addLayer(markerCluster);
 
-    let heatLayer;
-    let heatData = [];
+    const heatLayer = L.heatLayer([], {
+      radius: 25,
+      blur: 20,
+      maxZoom: 10,
+      gradient: { 0.4: 'blue', 0.6: 'lime', 0.9: 'red' }
+    });
 
     Papa.parse(sheetUrl, {
       download: true,
@@ -90,29 +122,30 @@
       }
     });
 
-    function setup(){
+    function setup() {
       populateFilters();
-      setupSearch();
       updateMap();
       addLegend();
+      setupAutocomplete();
 
       document.getElementById('resetButton').addEventListener('click', () => {
         document.getElementById('warehouseTypeFilter').value = 'all';
         document.getElementById('supervisorFilter').value = 'all';
         document.getElementById('regionFilter').value = 'all';
-        document.getElementById('searchBar').value = '';
-        if (searchMarker) map.removeLayer(searchMarker);
+        document.getElementById('searchInput').value = '';
+        if (currentSearchMarker) {
+          map.removeLayer(currentSearchMarker);
+          currentSearchMarker = null;
+        }
         updateMap();
       });
 
-      document.getElementById('toggleHeatmap').addEventListener('change', (e) => {
-        if (e.target.checked) {
-          if (!heatLayer) heatLayer = L.heatLayer(heatData, { radius: 20, blur: 15, maxZoom: 10 }).addTo(map);
+      document.getElementById('toggleHeatmap').addEventListener('change', function () {
+        if (this.checked) {
+          heatLayer.setLatLngs(heatPoints);
+          map.addLayer(heatLayer);
         } else {
-          if (heatLayer) {
-            map.removeLayer(heatLayer);
-            heatLayer = null;
-          }
+          map.removeLayer(heatLayer);
         }
       });
     }
@@ -136,28 +169,11 @@
       sel.addEventListener('change', updateMap);
     }
 
-    function setupSearch(){
-      const destinations = Array.from(new Set(allData.map(d => d['Destination Name']).filter(Boolean))).sort();
-      $("#searchBar").autocomplete({
-        source: destinations,
-        select: function(event, ui) {
-          const name = ui.item.value;
-          const entry = allData.find(d => d['Destination Name'] === name && d['Destination Lat'] && d['Destination Long']);
-          if (entry) {
-            if (searchMarker) map.removeLayer(searchMarker);
-            const latlng = [+entry['Destination Lat'], +entry['Destination Long']];
-            searchMarker = L.marker(latlng).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
-            map.setView(latlng, 13);
-          }
-        }
-      });
-    }
-
     function updateMap(){
       lines.forEach(l=>map.removeLayer(l)); lines=[];
       markers.forEach(m=>map.removeLayer(m)); markers=[];
       markerCluster.clearLayers();
-      heatData = [];
+      heatPoints = [];
 
       const wf = document.getElementById('warehouseTypeFilter').value;
       const sf = document.getElementById('supervisorFilter').value;
@@ -170,11 +186,19 @@
       );
 
       const gtMarker = L.marker(cebuCoords, {icon: cebuIcon})
-        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu');
+        .bindTooltip('<b>GTCosmetics Manufacturing Inc.</b><br>Main Plant<br>Tayud, Liloan, Cebu', {
+          permanent: false,
+          direction:'top'
+        });
       map.addLayer(gtMarker);
       markers.push(gtMarker);
 
       filt.forEach(draw);
+
+      if (document.getElementById('toggleHeatmap').checked) {
+        heatLayer.setLatLngs(heatPoints);
+        map.addLayer(heatLayer);
+      }
 
       if (rf !== 'all' && regionBounds[rf]) {
         map.fitBounds(regionBounds[rf]);
@@ -184,17 +208,13 @@
       } else {
         map.setView([10.3157,123.8854], 6);
       }
-
-      if (document.getElementById('toggleHeatmap').checked && heatData.length) {
-        if (heatLayer) map.removeLayer(heatLayer);
-        heatLayer = L.heatLayer(heatData, { radius: 20, blur: 15, maxZoom: 10 }).addTo(map);
-      }
     }
 
     function draw(d){
       if (!d['Origin Lat'] || !d['Origin Long'] || !d['Destination Lat'] || !d['Destination Long']) return;
 
-      const o=[+d['Origin Lat'], +d['Origin Long']], u=[+d['Destination Lat'], +d['Destination Long']];
+      const o=[+d['Origin Lat'], +d['Origin Long']];
+      const u=[+d['Destination Lat'], +d['Destination Long']];
       const txt = `
 <b>Route Type:</b> ${d['Route Type']}<br>
 <b>From:</b> ${d['Origin Name']}<br>
@@ -207,11 +227,23 @@
         weight:1.5,
         dashArray:getDash(d['Route Type'])
       }).addTo(map).bindTooltip(txt);
+
+      line.on('mouseover', () => animateRoute(o, u, d['Warehouse Type']));
+      line.on('click', () => animateRoute(o, u, d['Warehouse Type']));
       lines.push(line);
+
+      const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
+
+      if (!isCebuMain) {
+        const om = L.circleMarker(o,{radius:getSize(d['Route Type']),color:getColor(d['Route Type'])})
+          .bindTooltip(txt);
+        map.addLayer(om);
+        markers.push(om);
+      }
 
       const destColor = getDestColor(d['Warehouse Type']);
       const dm = L.circleMarker(u, {
-        radius: 4,
+        radius: getSize(d['Route Type']),
         color: destColor,
         fillColor: destColor,
         fillOpacity: 1
@@ -219,10 +251,20 @@
       markerCluster.addLayer(dm);
       markers.push(dm);
 
-      heatData.push([u[0], u[1]]);
+      heatPoints.push([u[0], u[1], 0.5]);
     }
 
-    function getColor(t){ return t.includes('to Bin') ? 'blue' : 'black'; }
+    function getColor(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 'black';
+        case 'Cebu Main to Bin': return 'black';
+        case 'Sub-warehouse to Satellite Warehouse': return 'blue';
+        case 'Sub-warehouse to Bin': return 'blue';
+        case 'Satellite Warehouse to Bin': return 'green';
+        default: return 'gray';
+      }
+    }
+
     function getDestColor(type){
       switch (type.trim()) {
         case 'Sub-warehouse': return 'blue';
@@ -231,7 +273,79 @@
         default: return 'gray';
       }
     }
+
     function getDash(t){ return t.includes('to Bin') ? '5,5' : null; }
+
+    function getSize(t){
+      switch (t.trim()) {
+        case 'Cebu Main to Sub-warehouse': return 6;
+        case 'Cebu Main to Bin': return 2;
+        case 'Sub-warehouse to Satellite Warehouse': return 4;
+        case 'Sub-warehouse to Bin': return 2;
+        case 'Satellite Warehouse to Bin': return 2;
+        default: return 4;
+      }
+    }
+
+    let animationCooldown = false;
+
+    function animateRoute(from, to, warehouseType) {
+      if (animationCooldown) return;
+      animationCooldown = true;
+
+      const steps = 200;
+      const delay = 15;
+      let currentStep = 0;
+
+      const color = getDestColor(warehouseType);
+      const marker = L.circleMarker(from, {
+        radius: 4,
+        color: color,
+        fillColor: color,
+        fillOpacity: 1
+      }).addTo(map);
+
+      const latStep = (to[0] - from[0]) / steps;
+      const lngStep = (to[1] - from[1]) / steps;
+
+      const interval = setInterval(() => {
+        if (currentStep >= steps) {
+          clearInterval(interval);
+          map.removeLayer(marker);
+          setTimeout(() => { animationCooldown = false; }, 2000);
+          return;
+        }
+        const newLat = from[0] + latStep * currentStep;
+        const newLng = from[1] + lngStep * currentStep;
+        marker.setLatLng([newLat, newLng]);
+        currentStep++;
+      }, delay);
+    }
+
+    function setupAutocomplete() {
+      const destinations = allData.map(d => ({
+        label: d['Destination Name'],
+        value: d['Destination Name'],
+        lat: +d['Destination Lat'],
+        lng: +d['Destination Long']
+      })).filter(d => d.lat && d.lng);
+
+      $("#searchInput").autocomplete({
+        source: destinations,
+        select: function(event, ui) {
+          if (currentSearchMarker) {
+            map.removeLayer(currentSearchMarker);
+            currentSearchMarker = null;
+          }
+          const { lat, lng, label } = ui.item;
+          currentSearchMarker = L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup(`<b>${label}</b>`)
+            .openPopup();
+          map.setView([lat, lng], 12);
+        }
+      });
+    }
 
     function addLegend(){
       const legendControl = L.control({position:'bottomright'});
