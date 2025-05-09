@@ -7,20 +7,37 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/awesomplete/1.1.5/awesomplete.min.css"/>
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" />
   <style>
     #map { height: 600px; width: 100%; }
     #filters { margin: 20px; font-family: Arial, sans-serif; }
     #resetButton { padding: 6px 12px; margin-left:10px; }
     .legend { background:white; padding:8px; font-size:12px; line-height:1.4; border-radius:4px; border:1px solid #ccc; }
-    .legend span { display:inline-block; width:12px; height:12px; margin-right:4px; vertical-align:middle; }
-    #searchContainer {
-      display: inline-block;
-      margin-left: 20px;
+
+    .legend span {
+      display:inline-block; width:12px; height:12px;
+      margin-right:4px; vertical-align:middle;
     }
+
+    #searchContainer {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      background: white;
+      padding: 6px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-family: Arial, sans-serif;
+    }
+
     #searchInput {
-      padding: 5px;
       width: 200px;
+      padding: 4px;
+    }
+
+    .ui-autocomplete {
+      z-index: 2000 !important;
     }
   </style>
 </head>
@@ -29,17 +46,19 @@
     <label>Warehouse Type: <select id="warehouseTypeFilter"></select></label>
     <label>Supervisor: <select id="supervisorFilter"></select></label>
     <label>Region: <select id="regionFilter"></select></label>
-    <div id="searchContainer">
-      <input id="searchInput" placeholder="Search Destination" class="awesomplete"/>
-    </div>
     <button id="resetButton">Reset View</button>
+  </div>
+  <div id="searchContainer">
+    <input type="text" id="searchInput" placeholder="Search Destination..." />
   </div>
   <div id="map"></div>
 
+  <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/awesomplete/1.1.5/awesomplete.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 
   <script>
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR0YzBM0KMyrNOC9sZ0KiLDwlk4kgVmjSxpls4k_aD-Wg9fbK2WYHUTstuI6XDqWSvHuy3gXtIz3l6g/pub?gid=542207452&single=true&output=csv';
@@ -63,7 +82,8 @@
       "Region XIII": [[8.5,125],[10.5,126.5]], "BARMM": [[5.5,120],[7.8,124.5]]
     };
 
-    let allData = [], lines = [], markers = [], searchMarker = null;
+    let allData = [], lines = [], markers = [];
+    let currentSearchMarker = null;
     const markerCluster = L.markerClusterGroup();
     map.addLayer(markerCluster);
 
@@ -78,17 +98,18 @@
 
     function setup() {
       populateFilters();
-      setupAutocomplete();
       updateMap();
       addLegend();
+      setupAutocomplete();
+
       document.getElementById('resetButton').addEventListener('click', () => {
         document.getElementById('warehouseTypeFilter').value = 'all';
         document.getElementById('supervisorFilter').value = 'all';
         document.getElementById('regionFilter').value = 'all';
         document.getElementById('searchInput').value = '';
-        if (searchMarker) {
-          map.removeLayer(searchMarker);
-          searchMarker = null;
+        if (currentSearchMarker) {
+          map.removeLayer(currentSearchMarker);
+          currentSearchMarker = null;
         }
         updateMap();
       });
@@ -113,32 +134,10 @@
       sel.addEventListener('change', updateMap);
     }
 
-    function setupAutocomplete() {
-      const input = document.getElementById('searchInput');
-      const destinationNames = Array.from(new Set(allData.map(d => d['Destination Name']).filter(Boolean))).sort();
-      new Awesomplete(input, { list: destinationNames });
-
-      input.addEventListener('awesomplete-selectcomplete', e => {
-        const selectedName = e.text.value;
-        const match = allData.find(d => d['Destination Name'] === selectedName);
-        if (match && match['Destination Lat'] && match['Destination Long']) {
-          const lat = parseFloat(match['Destination Lat']);
-          const lng = parseFloat(match['Destination Long']);
-          if (searchMarker) map.removeLayer(searchMarker);
-          searchMarker = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${selectedName}</b>`).openPopup();
-          map.setView([lat, lng], 13);
-        }
-      });
-    }
-
     function updateMap(){
       lines.forEach(l=>map.removeLayer(l)); lines=[];
       markers.forEach(m=>map.removeLayer(m)); markers=[];
       markerCluster.clearLayers();
-      if (searchMarker) {
-        map.removeLayer(searchMarker);
-        searchMarker = null;
-      }
 
       const wf = document.getElementById('warehouseTypeFilter').value;
       const sf = document.getElementById('supervisorFilter').value;
@@ -173,10 +172,8 @@
     function draw(d){
       if (!d['Origin Lat'] || !d['Origin Long'] || !d['Destination Lat'] || !d['Destination Long']) return;
 
-      const oLat = +d['Origin Lat'], oLng = +d['Origin Long'];
-      const dLat = +d['Destination Lat'], dLng = +d['Destination Long'];
-
-      const o=[oLat, oLng], u=[dLat, dLng];
+      const o=[+d['Origin Lat'], +d['Origin Long']];
+      const u=[+d['Destination Lat'], +d['Destination Long']];
       const txt = `
 <b>Route Type:</b> ${d['Route Type']}<br>
 <b>From:</b> ${d['Origin Name']}<br>
@@ -192,7 +189,6 @@
 
       line.on('mouseover', () => animateRoute(o, u, d['Warehouse Type']));
       line.on('click', () => animateRoute(o, u, d['Warehouse Type']));
-
       lines.push(line);
 
       const isCebuMain = Math.abs(o[0]-10.3802)<1e-4 && Math.abs(o[1]-123.9961)<1e-4;
@@ -254,7 +250,8 @@
       if (animationCooldown) return;
       animationCooldown = true;
 
-      const steps = 200, delay = 15;
+      const steps = 200;
+      const delay = 15;
       let currentStep = 0;
 
       const color = getDestColor(warehouseType);
@@ -272,7 +269,7 @@
         if (currentStep >= steps) {
           clearInterval(interval);
           map.removeLayer(marker);
-          setTimeout(() => animationCooldown = false, 2000);
+          setTimeout(() => { animationCooldown = false; }, 2000);
           return;
         }
         const newLat = from[0] + latStep * currentStep;
@@ -280,6 +277,31 @@
         marker.setLatLng([newLat, newLng]);
         currentStep++;
       }, delay);
+    }
+
+    function setupAutocomplete() {
+      const destinations = allData.map(d => ({
+        label: d['Destination Name'],
+        value: d['Destination Name'],
+        lat: +d['Destination Lat'],
+        lng: +d['Destination Long']
+      })).filter(d => d.lat && d.lng);
+
+      $("#searchInput").autocomplete({
+        source: destinations,
+        select: function(event, ui) {
+          if (currentSearchMarker) {
+            map.removeLayer(currentSearchMarker);
+            currentSearchMarker = null;
+          }
+          const { lat, lng, label } = ui.item;
+          currentSearchMarker = L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup(`<b>${label}</b>`)
+            .openPopup();
+          map.setView([lat, lng], 12);
+        }
+      });
     }
 
     function addLegend(){
